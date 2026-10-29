@@ -1,0 +1,88 @@
+[
+  {
+    "id": "d1",
+    "name": "Paneer Tikka",
+    "category": "Starters",
+    "type": "veg",
+    "available": true,
+    "variants": [
+      {
+        "name": "Half",
+        "pricePaise": 15000
+      },
+      {
+        "name": "Full",
+        "pricePaise": 28000
+      }
+    ]
+  },
+  {
+    "id": "d2",
+    "name": "Chicken Tikka",
+    "category": "Starters",
+    "type": "non-veg",
+    "available": true,
+    "variants": [
+      {
+        "name": "Half",
+        "pricePaise": 20000
+      },
+      {
+        "name": "Full",
+        "pricePaise": 38000
+      }
+    ]
+  },
+  {
+    "id": "d3",
+    "name": "Dal Tadka",
+    "category": "Main Course",
+    "type": "veg",
+    "available": true,
+    "variants": [
+      {
+        "name": "Full",
+        "pricePaise": 18000
+      }
+    ]
+  },
+  {
+    "id": "d4",
+    "name": "Butter Roti",
+    "category": "Breads",
+    "type": "veg",
+    "available": true,
+    "variants": [
+      {
+        "name": "Piece",
+        "pricePaise": 2500
+      }
+    ]
+  },
+  {
+    "id": "d5",
+    "name": "Veg Biryani",
+    "category": "Rice",
+    "type": "veg",
+    "available": true,
+    "variants": [
+      {
+        "name": "Full",
+        "pricePaise": 22000
+      }
+    ]
+  },
+  {
+    "id": "d6",
+    "name": "Sweet Lassi",
+    "category": "Beverages",
+    "type": "veg",
+    "available": true,
+    "variants": [
+      {
+        "name": "Glass",
+        "pricePaise": 8000
+      }
+    ]
+  }
+]

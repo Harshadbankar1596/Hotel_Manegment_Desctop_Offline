@@ -1,0 +1,15 @@
+{
+  "table-2": {
+    "items": [
+      {
+        "dishId": "d2",
+        "name": "Chicken Tikka",
+        "variant": "Half",
+        "quantity": 2,
+        "unitPricePaise": 20000
+      }
+    ],
+    "notes": "",
+    "startedAt": "2026-10-24T05:18:04.840Z"
+  }
+}

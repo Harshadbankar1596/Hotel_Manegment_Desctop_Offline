@@ -1,0 +1,40 @@
+[
+  {
+    "id": "1f829a3e-12f6-45ea-b56b-7e4e5b61b217",
+    "billNumber": "BILL-0001",
+    "tableId": "table-1",
+    "tableName": "Table 1",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "d1",
+        "name": "Paneer Tikka",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 28000,
+        "lineTotalPaise": 28000
+      }
+    ],
+    "subtotalPaise": 28000,
+    "discountPaise": 0,
+    "taxablePaise": 28000,
+    "taxPaise": 1400,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 1400
+      }
+    ],
+    "serviceChargePaise": 560,
+    "grandTotalPaise": 29960,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 50000,
+    "status": "Paid",
+    "createdAt": "2026-10-24T05:08:35.741Z",
+    "businessDate": "2026-10-24",
+    "changePaise": 20040
+  }
+]

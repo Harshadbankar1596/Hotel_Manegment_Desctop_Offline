@@ -1,0 +1,40 @@
+[
+  {
+    "id": "7328564f-e910-46be-b379-e39b7276da63",
+    "billNumber": "BILL-0002",
+    "tableId": "table-1",
+    "tableName": "Table 1",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "d2",
+        "name": "Chicken Tikka",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 38000,
+        "lineTotalPaise": 38000
+      }
+    ],
+    "subtotalPaise": 38000,
+    "discountPaise": 0,
+    "taxablePaise": 38000,
+    "taxPaise": 1900,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 1900
+      }
+    ],
+    "serviceChargePaise": 760,
+    "grandTotalPaise": 40660,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 50000,
+    "status": "Paid",
+    "createdAt": "2026-10-25T03:47:58.961Z",
+    "businessDate": "2026-10-25",
+    "changePaise": 9340
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "taxEnabled": true,
+  "taxRate": 5,
+  "taxMode": "exclusive",
+  "serviceChargeRate": 2,
+  "billPrefix": "BILL-",
+  "nextBillNumber": 3,
+  "tableCount": 12,
+  "receiptSize": "80mm",
+  "printerName": "",
+  "taxes": [
+    {
+      "name": "GST",
+      "rate": 5,
+      "enabled": true
+    }
+  ],
+  "taxName": "GST"
+}
