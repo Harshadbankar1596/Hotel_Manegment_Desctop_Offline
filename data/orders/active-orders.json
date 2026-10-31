@@ -1,42 +1,38 @@
 {
-  "table-2": {
-    "items": [
-      {
-        "dishId": "d2",
-        "name": "Chicken Tikka",
-        "variant": "Half",
-        "quantity": 2,
-        "unitPricePaise": 20000
-      }
-    ],
-    "notes": "",
-    "startedAt": "2026-10-24T05:18:04.840Z"
-  },
-  "table-1": {
+  "table-3": {
     "items": [
       {
         "dishId": "dish-adbb3a71-33ee-4497-90b2-85fd86d324fe",
         "name": "cold coffi",
         "variant": "Full",
-        "quantity": 1,
+        "quantity": 2,
         "unitPricePaise": 5000
       },
       {
-        "dishId": "dish-956b7919-1d66-4e75-843d-ae6f23420f49",
-        "name": "masala papad",
+        "dishId": "dish-0923a07e-9fe2-4b2a-a9a3-90e79013b4e4",
+        "name": "coffi",
         "variant": "Full",
-        "quantity": 1,
+        "quantity": 2,
         "unitPricePaise": 3000
-      },
-      {
-        "dishId": "dish-43b1a44f-65df-4553-9934-ca13d6a045d1",
-        "name": "biryani",
-        "variant": "Full",
-        "quantity": 1,
-        "unitPricePaise": 15000
       }
     ],
     "notes": "",
-    "startedAt": "2026-10-31T08:18:03.009Z"
+    "startedAt": "2026-10-31T14:43:51.036Z",
+    "kotSent": true,
+    "kitchenStatus": "Preparing",
+    "kotSentAt": "2026-10-31T14:44:13.404Z"
+  },
+  "takeaway": {
+    "items": [
+      {
+        "dishId": "dish-c7e40ee7-f62e-43ab-9675-bf6ad2161f05",
+        "name": "pav bhaji",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 12000
+      }
+    ],
+    "notes": "",
+    "startedAt": "2026-10-31T14:55:06.036Z"
   }
 }

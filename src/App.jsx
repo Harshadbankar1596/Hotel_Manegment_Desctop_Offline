@@ -453,13 +453,7 @@ export default function App() {
             </nav>
           </div>
         ))}
-        <div className="side-bottom">
-          <i />
-          <span>
-            <b>Offline mode</b>
-            <small>Data saved on this computer</small>
-          </span>
-        </div>
+        
       </aside>
       <main>
         <header>

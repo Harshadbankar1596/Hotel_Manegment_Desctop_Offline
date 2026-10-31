@@ -4,7 +4,7 @@
   "taxMode": "exclusive",
   "serviceChargeRate": 2,
   "billPrefix": "BILL-",
-  "nextBillNumber": 6,
+  "nextBillNumber": 9,
   "tableCount": 12,
   "receiptSize": "80mm",
   "printerName": "",
@@ -15,5 +15,7 @@
       "enabled": true
     }
   ],
-  "taxName": "GST"
+  "taxName": "GST",
+  "kitchenPrinterName": "",
+  "paymentPrinterName": ""
 }

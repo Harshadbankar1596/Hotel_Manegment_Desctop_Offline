@@ -128,5 +128,134 @@
     "createdAt": "2026-10-31T08:17:44.503Z",
     "businessDate": "2026-10-31",
     "changePaise": 20040
+  },
+  {
+    "id": "80eac489-8b83-45a1-8480-4a0dfbea2be6",
+    "billNumber": "BILL-0006",
+    "tableId": "table-6",
+    "tableName": "Table 6",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-c7e40ee7-f62e-43ab-9675-bf6ad2161f05",
+        "name": "pav bhaji",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 12000,
+        "lineTotalPaise": 12000
+      }
+    ],
+    "subtotalPaise": 12000,
+    "discountPaise": 0,
+    "taxablePaise": 12000,
+    "taxPaise": 600,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 600
+      }
+    ],
+    "serviceChargePaise": 240,
+    "grandTotalPaise": 12840,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 12840,
+    "status": "Paid",
+    "createdAt": "2026-10-31T09:17:41.958Z",
+    "businessDate": "2026-10-31",
+    "changePaise": 0
+  },
+  {
+    "id": "912c9331-c4d9-4fca-8839-e4da5649a640",
+    "billNumber": "BILL-0007",
+    "tableId": "table-2",
+    "tableName": "Table 2",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "d2",
+        "name": "Chicken Tikka",
+        "variant": "Half",
+        "quantity": 2,
+        "unitPricePaise": 20000,
+        "lineTotalPaise": 40000
+      }
+    ],
+    "subtotalPaise": 40000,
+    "discountPaise": 0,
+    "taxablePaise": 40000,
+    "taxPaise": 2000,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 2000
+      }
+    ],
+    "serviceChargePaise": 800,
+    "grandTotalPaise": 42800,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 50000,
+    "status": "Paid",
+    "createdAt": "2026-10-31T14:44:36.088Z",
+    "businessDate": "2026-10-31",
+    "changePaise": 7200
+  },
+  {
+    "id": "070a0c2f-1fa9-4516-99bc-92e1d67b1681",
+    "billNumber": "BILL-0008",
+    "tableId": "table-1",
+    "tableName": "Table 1",
+    "orderType": "Dine-in",
+    "notes": "lavkar banav",
+    "items": [
+      {
+        "dishId": "dish-adbb3a71-33ee-4497-90b2-85fd86d324fe",
+        "name": "cold coffi",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 5000,
+        "lineTotalPaise": 5000
+      },
+      {
+        "dishId": "dish-956b7919-1d66-4e75-843d-ae6f23420f49",
+        "name": "masala papad",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 3000,
+        "lineTotalPaise": 3000
+      },
+      {
+        "dishId": "dish-43b1a44f-65df-4553-9934-ca13d6a045d1",
+        "name": "biryani",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 15000,
+        "lineTotalPaise": 15000
+      }
+    ],
+    "subtotalPaise": 23000,
+    "discountPaise": 0,
+    "taxablePaise": 23000,
+    "taxPaise": 1150,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 1150
+      }
+    ],
+    "serviceChargePaise": 460,
+    "grandTotalPaise": 24610,
+    "paymentMethod": "UPI",
+    "cashReceivedPaise": 0,
+    "status": "Paid",
+    "createdAt": "2026-10-31T14:59:38.167Z",
+    "businessDate": "2026-10-31"
   }
 ]
