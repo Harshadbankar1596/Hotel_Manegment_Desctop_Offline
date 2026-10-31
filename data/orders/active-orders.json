@@ -1,38 +1,29 @@
 {
-  "table-3": {
+  "table-1": {
     "items": [
       {
-        "dishId": "dish-adbb3a71-33ee-4497-90b2-85fd86d324fe",
-        "name": "cold coffi",
+        "dishId": "dish-4c41257e-cd98-4ef9-84a8-8bd9a0747af1",
+        "name": "pulav",
         "variant": "Full",
-        "quantity": 2,
-        "unitPricePaise": 5000
+        "quantity": 1,
+        "unitPricePaise": 10000
       },
-      {
-        "dishId": "dish-0923a07e-9fe2-4b2a-a9a3-90e79013b4e4",
-        "name": "coffi",
-        "variant": "Full",
-        "quantity": 2,
-        "unitPricePaise": 3000
-      }
-    ],
-    "notes": "",
-    "startedAt": "2026-10-31T14:43:51.036Z",
-    "kotSent": true,
-    "kitchenStatus": "Preparing",
-    "kotSentAt": "2026-10-31T14:44:13.404Z"
-  },
-  "takeaway": {
-    "items": [
       {
         "dishId": "dish-c7e40ee7-f62e-43ab-9675-bf6ad2161f05",
         "name": "pav bhaji",
         "variant": "Full",
         "quantity": 1,
         "unitPricePaise": 12000
+      },
+      {
+        "dishId": "dish-58721a65-7f00-4541-a7ff-3b542315e57b",
+        "name": "panner tikka",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 10000
       }
     ],
     "notes": "",
-    "startedAt": "2026-10-31T14:55:06.036Z"
+    "startedAt": "2026-10-31T17:36:36.102Z"
   }
 }

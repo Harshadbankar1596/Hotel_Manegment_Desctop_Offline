@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Navigate,
   NavLink,
   Route,
   Routes,
@@ -46,6 +47,9 @@ import {
   Smartphone,
   ShoppingBag,
   AlertTriangle,
+  LayoutGrid,
+  Send,
+  ChevronRight,
 } from "lucide-react";
 import FloorPlan from "./pages/FloorPlan.jsx";
 import KitchenDisplay from "./pages/KitchenDisplay.jsx";
@@ -152,6 +156,47 @@ const groups = [
   ],
 ];
 const links = groups.flatMap((g) => g[1]);
+
+
+/* Daily work lives in the top bar (Tables / Kitchen / Bills). Everything else is tucked into "Manage". */
+const manageLinks = [
+  ["/dashboard", "Dashboard", LayoutDashboard],
+  ["/menu", "Menu & Dishes", Utensils],
+  ["/categories", "Categories", Tags],
+  ["/reports", "Reports", BarChart3],
+  ["/settings", "Settings", Settings],
+  ["/settings/backup", "Data & Backups", Archive],
+];
+function ManageMenu({ nav, pathname }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    const esc = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", off);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", off); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  useEffect(() => setOpen(false), [pathname]);
+  const inManage = manageLinks.some(([to]) => pathname === to || pathname.startsWith(to + "/"));
+  return (
+    <div className="manage" ref={ref}>
+      <button className={"manage-btn" + (inManage ? " on" : "")} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <LayoutGrid size={16} /> Manage <ChevronDown size={14} />
+      </button>
+      {open && (
+        <div className="manage-pop" role="menu">
+          {manageLinks.map(([to, label, Icon]) => (
+            <button key={to} role="menuitem" onClick={() => nav(to)}>
+              <Icon size={17} /> {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* Promise based confirm / prompt dialogs (window.prompt is not supported in Electron). */
 let dialogOpener = null;
@@ -414,92 +459,56 @@ export default function App() {
       </div>
     );
   const pendingCount = s.bills.filter((b) => b.status === "Pending").length;
-  const todayCount = s.bills.filter((b) => billDay(b) === dayKey()).length;
-  const current = links.find(
-    (x) => loc.pathname === x[0] || (x[0] !== "/settings" && loc.pathname.startsWith(x[0] + "/")),
-  ) || (loc.pathname.startsWith("/billing") ? ["", "Billing"] : loc.pathname.startsWith("/settings") ? ["", "Settings"] : ["", "Dashboard"]);
+  const liveOrders = Object.values(s.orders || {}).filter((o) => o?.items?.length && o.kotSent);
+  const kitchenActive = liveOrders.filter((o) => o.kitchenStatus !== "Ready").length;
+  const kitchenReady = liveOrders.length - kitchenActive;
   return (
     <div className="shell">
-      <aside className="sidebar">
-        <div className="logo">
-          <div className="logo-icon">
-            {s.hotel.logoDataUrl ? (
-              <img src={s.hotel.logoDataUrl} alt="Hotel logo" />
-            ) : (
-              <Hotel size={22} />
-            )}
+      <header className="topbar">
+        <button className="brand" onClick={() => nav("/tables")} title="Go to Tables">
+          <span className="logo-icon">
+            {s.hotel.logoDataUrl ? <img src={s.hotel.logoDataUrl} alt="Hotel logo" /> : <Hotel size={20} />}
+          </span>
+          <b>{s.hotel.name || "Optimize"}</b>
+        </button>
+        <nav className="top-tabs" aria-label="Main">
+          <NavLink to="/tables" className={({ isActive }) => (isActive || loc.pathname.startsWith("/billing") ? "active" : "")}>
+            <Table2 size={18} /> Tables
+          </NavLink>
+          <NavLink to="/kitchen" className={({ isActive }) => (isActive ? "active" : "")}>
+            <ChefHat size={18} /> Kitchen
+            {kitchenActive > 0 && <span>{kitchenActive}</span>}
+            {kitchenActive === 0 && kitchenReady > 0 && <span className="ok">{kitchenReady}</span>}
+          </NavLink>
+          <NavLink to="/bills" className={({ isActive }) => (isActive ? "active" : "")}>
+            <Receipt size={18} /> Bills
+            {pendingCount > 0 && <span className="warn" title="Pending bills">{pendingCount}</span>}
+          </NavLink>
+        </nav>
+        <div className="top-right">
+          <span className="offline-pill" title="Offline mode: data is saved on this computer">
+            <i /> Saved on this PC
+          </span>
+          <div className="clock">
+            <b>{now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</b>
+            <small>{now.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}</small>
           </div>
-          <b>
-            {s.hotel.name || "Optimize"}
-            <small>Restaurant POS</small>
-          </b>
+          <button className="icon-btn" title={theme === "light" ? "Dark theme" : "Light theme"} onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}>
+            {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
+          <button className="icon-btn" title="Refresh data" onClick={() => reload(true)}>
+            <RefreshCw size={16} />
+          </button>
+          <ManageMenu nav={nav} pathname={loc.pathname} />
         </div>
-        {groups.map(([caption, items]) => (
-          <div key={caption}>
-            <label className="nav-caption">{caption}</label>
-            <nav>
-              {items.map(([to, label, Icon]) => (
-                <NavLink
-                  to={to}
-                  key={to}
-                  end={to === "/settings" || to === "/dashboard"}
-                  className={({ isActive }) => (isActive ? "active" : "")}
-                >
-                  <Icon size={18} />
-                  {label}
-                  {to === "/bills" && todayCount > 0 && <span>{todayCount}</span>}
-                </NavLink>
-              ))}
-            </nav>
-          </div>
-        ))}
-        
-      </aside>
+      </header>
       <main>
-        <header>
-          <div className="crumb">
-            {loc.pathname.split("/").filter(Boolean).length > 1 && !loc.pathname.startsWith("/billing") ? (
-              <button className="back-btn" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/dashboard"))}>
-                <ArrowLeft size={16} /> Back
-              </button>
-            ) : (
-              <strong>{s.hotel.name || "Your restaurant"}</strong>
-            )}
-          </div>
-          <div className="header-actions">
-            <div className="clock">
-              <b>{now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</b>
-              <small>
-                {now.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
-              </small>
-            </div>
-            <button
-              className="icon-btn"
-              title={theme === "light" ? "Dark theme" : "Light theme"}
-              onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
-            >
-              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
-            </button>
-            <button className="icon-btn" title="Refresh data" onClick={() => reload(true)}>
-              <RefreshCw size={16} />
-            </button>
-            <button
-              className="icon-btn"
-              title="Pending bills"
-              onClick={() => (pendingCount ? nav("/bills") : notify("No pending bills — you are all caught up"))}
-            >
-              <Bell size={16} />
-              {pendingCount > 0 && <em>{pendingCount}</em>}
-            </button>
-            <span className="avatar">{(s.hotel.name || "GS").slice(0, 2).toUpperCase()}</span>
-          </div>
-        </header>
         <div className="content">
           <Routes>
-            <Route path="/" element={<Dashboard s={s} nav={nav} />} />
+            <Route path="/" element={<Navigate to="/tables" replace />} />
             <Route path="/dashboard" element={<Dashboard s={s} nav={nav} />} />
             <Route path="/tables" element={<FloorPlan s={s} save={save} nav={nav} notify={notify} />} />
-            <Route path="/kitchen" element={<KitchenDisplay s={s} nav={nav} notify={notify} printKOT={(tableId, order, table) => printHtml(s, kotHtml(s, tableId, order, table), notify, "kitchen")} />} />
+            <Route path="/kitchen" element={<KitchenDisplay s={s} save={save} nav={nav} notify={notify} printKOT={(tableId, order, table) => printHtml(s, kotHtml(s, tableId, order, table), notify, "kitchen")} />} />
             <Route
               path="/billing/:tableId"
               element={<BillingRoute s={s} persist={persistOrder} finish={finish} nav={nav} notify={notify} printKOT={(tableId, order, table) => printHtml(s, kotHtml(s, tableId, order, table), notify, "kitchen")} />}
@@ -514,16 +523,9 @@ export default function App() {
             <Route path="/reports" element={<Reports s={s} />} />
             <Route path="/settings" element={<SettingsPage s={s} save={save} notify={notify} theme={theme} setTheme={setTheme} colors={colors} setColors={setColors} />} />
             <Route path="/settings/:section" element={<SettingsPage s={s} save={save} notify={notify} theme={theme} setTheme={setTheme} colors={colors} setColors={setColors} />} />
-            <Route path="*" element={<Dashboard s={s} nav={nav} />} />
+            <Route path="*" element={<Navigate to="/tables" replace />} />
           </Routes>
         </div>
-        <footer>
-          © {new Date().getFullYear()} Optimize Hotel Management{" "}
-          <span>
-            <ShieldCheck size={13} /> Your data stays on this device
-          </span>
-          <span>Version 1.1.0</span>
-        </footer>
       </main>
       <DialogHost />
       {toast && (
@@ -1097,6 +1099,38 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
     if (yes) change((o) => ({ ...o, items: [] }));
   };
   const itemCount = order.items.reduce((a, i) => a + i.quantity, 0);
+  /* KOT tracking: only items added after the last KOT go to the kitchen again */
+  const keyOf = (i) => i.dishId + "|" + i.variant;
+  const sentMap = order.kotSent ? order.kotQty || null : {};
+  const unsent = order.items
+    .map((i) => ({ ...i, quantity: i.quantity - (sentMap ? sentMap[keyOf(i)] || 0 : i.quantity) }))
+    .filter((i) => i.quantity > 0);
+  const needsKot = unsent.length > 0;
+  const unsentQty = unsent.reduce((a, i) => a + i.quantity, 0);
+  const step = !order.items.length ? 1 : needsKot ? 2 : 3;
+  const sendKot = async () => {
+    if (!order.items.length) return;
+    const sent = {
+      ...order,
+      kotSent: true,
+      kitchenStatus: "Preparing",
+      kotSentAt: new Date().toISOString(),
+      kotQty: Object.fromEntries(order.items.map((i) => [keyOf(i), i.quantity])),
+    };
+    const saved = await persist(tableId, sent);
+    if (saved === false) return;
+    setOrder(sent);
+    dirty.current = false;
+    notify(order.kotSent ? "New items sent to kitchen" : "KOT sent to kitchen");
+    printKOT?.(tableId, { ...sent, items: unsent }, table?.name || "Takeaway");
+  };
+  const reprintKot = () => printKOT?.(tableId, order, table?.name || "Takeaway");
+  const openPay = () => { setErr(""); setPay(true); };
+  const steps = [
+    ["Pick food", Utensils],
+    ["Send to kitchen", ChefHat],
+    ["Bill", CreditCard],
+  ];
   const methods = [
     ["Cash", Banknote],
     ["UPI", Smartphone],
@@ -1115,6 +1149,18 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
           {order.kotSent && <span className="chip kot"><ChefHat size={12} /> KOT sent</span>}
           {order.startedAt && order.items.length > 0 && <small>Started {fmtTime(order.startedAt)} · {elapsed(order.startedAt)}</small>}
         </div>
+        <ol className="stepper" aria-label="Order steps">
+          {steps.map(([label, Icon], i) => {
+            const n = i + 1;
+            const state = n < step ? "done" : n === step ? "now" : "next";
+            return (
+              <li key={label} className={state}>
+                <span>{state === "done" ? <Check size={13} /> : n}</span>
+                {label}
+              </li>
+            );
+          })}
+        </ol>
       </div>
       <div className="billing">
         <section className="menu-pane">
@@ -1253,10 +1299,6 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
                   placeholder="e.g. less spicy"
                 />
               </label>
-              <label className="field-label" htmlFor="disc">
-                Discount (₹)
-                <input id="disc" type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
-              </label>
             </div>
             <div className="totals">
               <div><span>Subtotal</span><b>{money(subtotal)}</b></div>
@@ -1273,27 +1315,33 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
               <div className="grand"><b>Total</b><strong>{money(total)}</strong></div>
             </div>
             <div className="cart-actions">
-              <button
-                className="btn send-kot"
-                disabled={!order.items.length}
-                onClick={async () => {
-                  const sent = { ...order, kotSent: true, kitchenStatus: "Preparing", kotSentAt: new Date().toISOString() };
-                  const saved = await persist(tableId, sent);
-                  if (saved === false) return;
-                  setOrder(sent);
-                  dirty.current = false;
-                  printKOT?.(tableId, sent, table?.name || "Takeaway");
-                }}
-              >
-                <ChefHat size={16} /> {order.kotSent ? "Resend KOT" : "Send KOT"}
-              </button>
-              <button
-                className="primary pay-btn"
-                disabled={!order.items.length}
-                onClick={() => { setErr(""); setPay(true); }}
-              >
-                <CreditCard size={16} /> Pay {money(total)}
-              </button>
+              {!order.items.length ? (
+                <button className="primary main-cta" disabled>
+                  <Utensils size={18} /> Pick dishes to start
+                </button>
+              ) : needsKot ? (
+                <>
+                  <button className="primary main-cta kot-cta" onClick={sendKot}>
+                    <Send size={18} />
+                    {order.kotSent ? `Send ${unsentQty} new item${unsentQty > 1 ? "s" : ""} to kitchen` : "Send to kitchen (KOT)"}
+                  </button>
+                  <button className="text-btn skip-kot" onClick={openPay}>
+                    Skip KOT, bill now · {money(total)} <ChevronRight size={14} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="primary main-cta" onClick={openPay}>
+                    <CreditCard size={18} /> Bill · {money(total)}
+                  </button>
+                  <div className="cta-row">
+                    <button className="text-btn" onClick={reprintKot}>
+                      <Printer size={13} /> Reprint KOT
+                    </button>
+                    <span>Need more? Tap a dish to add.</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </aside>
@@ -1309,6 +1357,10 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
               <span>Amount payable</span>
               <strong>{money(total)}</strong>
             </div>
+            <label className="field-label disc-field" htmlFor="disc">
+              Discount (₹)
+              <input id="disc" type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+            </label>
             <div className="pay-methods">
               {methods.map(([m, Icon]) => (
                 <button key={m} className={method === m ? "active" : ""} onClick={() => setMethod(m)}>

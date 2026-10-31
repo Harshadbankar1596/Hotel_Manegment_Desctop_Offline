@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import { ChefHat, Plus, ShoppingBag, Utensils, X } from "lucide-react";
 
 const ZONES = ["A/C", "Non A/C", "Bar"];
+/* key, label, css class, hint shown on the card */
 const STATES = [
-  ["Available", "Free", "free"],
-  ["Running", "Running", "running"],
-  ["Running KOT", "In kitchen", "kot"],
+  ["Available", "Free", "free", "Tap to start order"],
+  ["Running", "Ordering", "running", "Continue order"],
+  ["Running KOT", "In kitchen", "kot", "Add more or bill"],
+  ["Ready", "Ready to serve", "ready", "Serve, then bill"],
 ];
 const zoneOf = (t) => t.zone || "A/C";
 const rupees = (paise) =>
@@ -33,12 +35,17 @@ export default function FloorPlan({ s, save, nav, notify }) {
   const stateFor = (table) => {
     const order = s.orders?.[table.id];
     if (!order?.items?.length) return "Available";
-    return order.kotSent ? "Running KOT" : "Running";
+    if (!order.kotSent) return "Running";
+    return order.kitchenStatus === "Ready" ? "Ready" : "Running KOT";
   };
   const inZone = tables.filter((t) => zone === "All" || zoneOf(t) === zone);
   const shown = inZone.filter((t) => filter === "All" || stateFor(t) === filter);
   const count = (st) => inZone.filter((t) => stateFor(t) === st).length;
   const takeaway = s.orders?.takeaway;
+  const takeawayItems = takeaway?.items || [];
+  const takeawayAmount = takeawayItems.reduce((sum, i) => sum + i.unitPricePaise * i.quantity, 0);
+  const zonesUsed = ZONES.filter((z) => tables.some((t) => zoneOf(t) === z));
+  const running = tables.length - tables.filter((t) => stateFor(t) === "Available").length;
 
   const addTable = async () => {
     const name = tableName.trim();
@@ -75,18 +82,11 @@ export default function FloorPlan({ s, save, nav, notify }) {
               year: "numeric",
             })}
             {" · "}
-            {count("Available")} free · {count("Running") + count("Running KOT")} running
+            {tables.length - running} free · {running} busy
           </p>
         </div>
         <div className="page-head-actions">
-          <button className="btn" onClick={() => nav("/kitchen")}>
-            <Utensils size={16} /> Kitchen
-          </button>
-          <button className="btn" onClick={() => nav("/billing/takeaway")}>
-            <ShoppingBag size={16} />
-            {takeaway?.items?.length ? "Continue takeaway" : "+ Takeaway"}
-          </button>
-          <button className="primary" onClick={() => setAdding((v) => !v)}>
+          <button className="btn" onClick={() => setAdding((v) => !v)}>
             <Plus size={16} /> Add table
           </button>
         </div>
@@ -117,7 +117,7 @@ export default function FloorPlan({ s, save, nav, notify }) {
 
       <div className="floor-bar">
         <div className="pill-row">
-          {["All", ...ZONES].map((z) => {
+          {zonesUsed.length > 1 && ["All", ...zonesUsed].map((z) => {
             const n = tables.filter((t) => z === "All" || zoneOf(t) === z).length;
             return (
               <button key={z} className={"pill" + (zone === z ? " active" : "")} onClick={() => setZone(z)}>
@@ -142,10 +142,34 @@ export default function FloorPlan({ s, save, nav, notify }) {
 
       {shown.length ? (
         <div className="floor-grid">
+          {filter === "All" && zone === "All" && (
+            <button
+              className={"floor-table takeaway" + (takeawayItems.length ? " running" : "")}
+              onClick={() => nav("/billing/takeaway")}
+            >
+              <div className="ft-top">
+                <strong>Takeaway</strong>
+                <ShoppingBag size={18} />
+              </div>
+              {takeawayItems.length ? (
+                <>
+                  <span className="ft-state running"><i className="dot running" /> Ordering</span>
+                  <b className="ft-amount">{rupees(takeawayAmount)}</b>
+                  <small className="ft-meta">{takeawayItems.reduce((a, i) => a + i.quantity, 0)} items</small>
+                </>
+              ) : (
+                <>
+                  <span className="ft-state"><i className="dot free" /> No order</span>
+                  <b className="ft-open">+ New takeaway order</b>
+                </>
+              )}
+            </button>
+          )}
           {shown.map((table) => {
             const state = stateFor(table);
             const cls = STATES.find((x) => x[0] === state)?.[2] || "free";
             const label = STATES.find((x) => x[0] === state)?.[1] || "Free";
+            const hint = STATES.find((x) => x[0] === state)?.[3] || "Tap to open";
             const order = s.orders?.[table.id];
             const items = order?.items || [];
             const amount = items.reduce((sum, i) => sum + i.unitPricePaise * i.quantity, 0);
@@ -178,8 +202,9 @@ export default function FloorPlan({ s, save, nav, notify }) {
                     </small>
                   </>
                 ) : (
-                  <b className="ft-open">Tap to open</b>
+                  <b className="ft-open">{hint}</b>
                 )}
+                {items.length > 0 && <span className="ft-hint">{hint} →</span>}
               </button>
             );
           })}

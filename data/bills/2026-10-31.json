@@ -257,5 +257,43 @@
     "status": "Paid",
     "createdAt": "2026-10-31T14:59:38.167Z",
     "businessDate": "2026-10-31"
+  },
+  {
+    "id": "f2febfc7-4478-47b9-b430-32d5916c6f7b",
+    "billNumber": "BILL-0009",
+    "tableId": "table-1",
+    "tableName": "Table 1",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-c7e40ee7-f62e-43ab-9675-bf6ad2161f05",
+        "name": "pav bhaji",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 12000,
+        "lineTotalPaise": 12000
+      }
+    ],
+    "subtotalPaise": 12000,
+    "discountPaise": 0,
+    "taxablePaise": 12000,
+    "taxPaise": 600,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 600
+      }
+    ],
+    "serviceChargePaise": 240,
+    "grandTotalPaise": 12840,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 0,
+    "status": "Paid",
+    "createdAt": "2026-10-31T17:33:20.498Z",
+    "businessDate": "2026-10-31",
+    "paidAt": "2026-10-31T17:33:27.783Z"
   }
 ]
