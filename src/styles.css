@@ -35,6 +35,11 @@
   --side-muted: #6d726d;
   --side-hover: #faf9f6;
   --side-line: #e6e4dc;
+  --s-text: #1b1f1d;
+  --s-muted: #6d726d;
+  --s-line: #e6e4dc;
+  --s-line-2: #d9d6cb;
+  --s-2: #faf9f6;
   --on-brand: #ffffff;
   --shadow: 0 1px 2px rgba(20, 30, 25, 0.05), 0 4px 14px rgba(20, 30, 25, 0.04);
   --shadow-lg: 0 24px 60px rgba(15, 25, 20, 0.25);
@@ -74,6 +79,11 @@
   --side-muted: #9ba39e;
   --side-hover: #202622;
   --side-line: #2c332f;
+  --s-text: #eef2ef;
+  --s-muted: #9ba39e;
+  --s-line: #2c332f;
+  --s-line-2: #3a423d;
+  --s-2: #202622;
   --on-brand: #08140f;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
@@ -338,6 +348,54 @@ input[type="checkbox"] {
 }
 
 /* ---------- Layout shell ---------- */
+/* ---------------------------------------------------------------------
+   60-30-10 scope: anything painted with the SECONDARY colour (--surface)
+   re-maps text / line / background variables to values that are readable on
+   that colour. This keeps every secondary + main combination legible.
+   Declared early so component rules below can still override colour.
+   --------------------------------------------------------------------- */
+.back-btn,
+.btn,
+.cart,
+.cart-foot,
+.chip,
+.dish-card,
+.floor-add,
+.floor-empty,
+.floor-table,
+.food-image-preview,
+.icon-btn,
+.kitchen-summary > div,
+.kot-card,
+.legend-filter button.on,
+.legend-filter button:hover,
+.manage-btn,
+.manage-pop,
+.modal,
+.panel,
+.pay-methods button,
+.pill,
+.primary,
+.printer-config em.not-connected,
+.search,
+.settings-nav,
+.stat,
+.tabs button,
+.theme-preset,
+.topbar,
+.tp-card,
+.variant-form button,
+input,
+select,
+textarea {
+  --text: var(--s-text);
+  --muted: var(--s-muted);
+  --line: var(--s-line);
+  --line-2: var(--s-line-2);
+  --surface-2: var(--s-2);
+  --bg: var(--surface);
+  color: var(--s-text);
+}
 .shell {
   min-height: 100vh;
 }
@@ -2520,19 +2578,20 @@ tr.click:hover td {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  display: grid;
-  grid-template-columns: 78px 1fr;
+  display: flex;
+  flex-direction: column;
   min-height: 190px;
 }
 .tp-side {
   background: var(--side);
   color: var(--side-text);
-  padding: 12px 8px;
+  padding: 8px 10px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
   font-size: 10px;
-  border-right: 1px solid var(--side-line);
+  border-bottom: 1px solid var(--side-line);
 }
 .tp-side span {
   padding: 5px 7px;
@@ -2972,4 +3031,15 @@ tr.click:hover td {
   .content {
     padding: 14px 14px 24px;
   }
+}
+
+/* Status-coloured table cards keep fixed soft backgrounds, so their text must not follow the secondary colour */
+:root { --fx-text: #1b1f1d; --fx-muted: #6d726d; }
+:root[data-theme="dark"] { --fx-text: #eef2ef; --fx-muted: #9ba39e; }
+.floor-table.running,
+.floor-table.kot,
+.floor-table.ready {
+  --text: var(--fx-text);
+  --muted: var(--fx-muted);
+  color: var(--fx-text);
 }

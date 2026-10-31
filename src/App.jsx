@@ -2210,8 +2210,8 @@ function ThemeSection({ theme, setTheme, colors, setColors, notify }) {
     if (isHex(v)) setColors(sameColors({ ...cur, [k]: v }, DEFAULT_COLORS) ? null : { ...cur, [k]: v });
   };
   const rows = [
-    ["main", "Main color", "60%", "Page background and cards. Pick a calm, light shade."],
-    ["secondary", "Secondary color", "30%", "Sidebar, panels and soft areas."],
+    ["main", "Main color", "60%", "Page background, the canvas behind everything. Pick a calm shade."],
+    ["secondary", "Secondary color", "30%", "Top bar, cards, order panel and pop-ups."],
     ["accent", "Accent color", "10%", "Buttons, active menu, prices and highlights. Pick your brand color."],
   ];
   return (

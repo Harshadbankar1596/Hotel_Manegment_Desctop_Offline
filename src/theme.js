@@ -1,7 +1,7 @@
 /* Theme engine: 3 user colours -> full light + dark palette using the 60-30-10 rule.
- *   60%  main      -> page background and card surfaces
- *   30%  secondary -> sidebar, panels tint, borders
- *   10%  accent    -> buttons, active menu, prices, highlights
+ *   60%  main      -> page background (the canvas everything sits on)
+ *   30%  secondary -> top bar, cards, panels, order cart, popups
+ *   10%  accent    -> buttons, active tab, prices, highlights
  * Status colours (paid / pending / error) stay fixed on purpose so meaning never changes.
  */
 export const DEFAULT_COLORS = { main: "#f4f3ef", secondary: "#ffffff", accent: "#0f6b52" };
@@ -59,12 +59,20 @@ export const sameColors = (a, b) => ["main", "secondary", "accent"].every((k) =>
 export function buildPalette(input, mode = "light") {
   const { main, secondary, accent } = sanitize(input);
   const dark = mode === "dark";
+  /* 60%: page background */
   const bg = dark ? mix(main, "#000000", 0.88) : main;
-  const surface = dark ? mix(bg, "#ffffff", 0.06) : isLight(bg) ? mix(bg, "#ffffff", 0.65) : mix(bg, "#ffffff", 0.1);
   const ink = inkOn(bg);
   const text = dark ? "#eef2ef" : mix(ink, accent, 0.06);
-  const side = dark ? mix(secondary, "#000000", 0.86) : secondary;
-  const sideText = inkOn(side);
+  /* 30%: top bar, cards, panels, order cart, popups. Always the user's secondary color. */
+  const surface = dark
+    ? isLight(secondary) ? mix(secondary, "#000000", 0.82) : mix(secondary, "#000000", 0.25)
+    : secondary;
+  const sText = dark ? "#eef2ef" : mix(inkOn(surface), accent, 0.06);
+  const sMuted = mix(sText, surface, dark ? 0.4 : 0.42);
+  const sLine = mix(surface, sText, dark ? 0.16 : 0.12);
+  const sLine2 = mix(surface, sText, dark ? 0.26 : 0.22);
+  const s2 = mix(surface, sText, dark ? 0.05 : 0.035);
+  /* 10%: accent -> buttons, active tab, prices, highlights */
   const brand = ensureContrast(dark ? mix(accent, "#ffffff", 0.18) : accent, surface, dark ? 4.5 : 3.2);
   return {
     "--bg": bg,
@@ -74,16 +82,22 @@ export function buildPalette(input, mode = "light") {
     "--line-2": mix(bg, text, dark ? 0.26 : 0.2),
     "--text": text,
     "--muted": mix(text, bg, dark ? 0.4 : 0.42),
+    /* text + lines used INSIDE surface-coloured areas (see the scope rule in styles.css) */
+    "--s-text": sText,
+    "--s-muted": sMuted,
+    "--s-line": sLine,
+    "--s-line-2": sLine2,
+    "--s-2": s2,
     "--brand": brand,
     "--brand-2": mix(brand, dark ? "#ffffff" : "#000000", 0.14),
     "--brand-soft": mix(surface, brand, dark ? 0.22 : 0.13),
     "--gold": brand,
     "--on-brand": inkOn(brand),
-    "--side": side,
-    "--side-text": sideText,
-    "--side-muted": mix(side, sideText, 0.62),
-    "--side-hover": mix(side, sideText, 0.08),
-    "--side-line": mix(side, sideText, 0.14),
+    "--side": surface,
+    "--side-text": sText,
+    "--side-muted": sMuted,
+    "--side-hover": s2,
+    "--side-line": sLine,
   };
 }
 
