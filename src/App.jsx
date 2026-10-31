@@ -29,7 +29,6 @@ import {
   Search,
   Settings,
   ShieldCheck,
-  Store,
   Table2,
   Tags,
   Trash2,
@@ -51,6 +50,7 @@ import {
 import FloorPlan from "./pages/FloorPlan.jsx";
 import KitchenDisplay from "./pages/KitchenDisplay.jsx";
 import FoodThumb from "./components/FoodThumb.jsx";
+import { DEFAULT_COLORS, PRESETS, applyTheme, buildPalette, isHex, sameColors, sanitize } from "./theme.js";
 import {
   Bar,
   BarChart,
@@ -130,7 +130,7 @@ const groups = [
     "OPERATIONS",
     [
       ["/dashboard", "Dashboard", LayoutDashboard],
-      ["/tables", "Table View", Table2],
+      ["/tables", "Tables", Table2],
       ["/kitchen", "Kitchen / KOT", ChefHat],
       ["/bills", "Bills", Receipt],
     ],
@@ -226,7 +226,15 @@ export default function App() {
     [query, setQuery] = useState(""),
     [theme, setTheme] = useState(
       () => localStorage.getItem("hotel-theme") || "light",
-    );
+    ),
+    [colors, setColors] = useState(() => {
+      try {
+        const v = JSON.parse(localStorage.getItem("hotel-colors") || "null");
+        return v ? sanitize(v) : null;
+      } catch {
+        return null;
+      }
+    });
   const nav = useNavigate();
   const loc = useLocation();
   const sRef = useRef(s);
@@ -253,9 +261,12 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    applyTheme(colors, theme);
     localStorage.setItem("hotel-theme", theme);
-  }, [theme]);
+    try {
+      colors ? localStorage.setItem("hotel-colors", JSON.stringify(colors)) : localStorage.removeItem("hotel-colors");
+    } catch {}
+  }, [theme, colors]);
   const save = async (k, v) => {
     const prev = sRef.current[k];
     sRef.current = { ...sRef.current, [k]: v };
@@ -420,15 +431,8 @@ export default function App() {
           </div>
           <b>
             {s.hotel.name || "Optimize"}
-            <small>HOTEL MANAGEMENT</small>
+            <small>Restaurant POS</small>
           </b>
-        </div>
-        <div className="venue">
-          <Store size={17} />
-          <div>
-            <b>{s.hotel.name || "Your Hotel"}</b>
-            <small>{s.tables.filter((t) => t.enabled !== false).length} tables · local workspace</small>
-          </div>
         </div>
         {groups.map(([caption, items]) => (
           <div key={caption}>
@@ -450,33 +454,25 @@ export default function App() {
           </div>
         ))}
         <div className="side-bottom">
-          <p>
-            <i /> Offline-ready mode
-          </p>
-          <div>
-            <ShieldCheck size={17} />
-            <span>
-              <b>Local by design</b>
-              <small>Your data stays on this device</small>
-            </span>
-          </div>
+          <i />
+          <span>
+            <b>Offline mode</b>
+            <small>Data saved on this computer</small>
+          </span>
         </div>
       </aside>
       <main>
         <header>
           <div className="crumb">
-            Workspace <b>/</b> <strong>{current[1]}</strong>
+            {loc.pathname.split("/").filter(Boolean).length > 1 && !loc.pathname.startsWith("/billing") ? (
+              <button className="back-btn" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/dashboard"))}>
+                <ArrowLeft size={16} /> Back
+              </button>
+            ) : (
+              <strong>{s.hotel.name || "Your restaurant"}</strong>
+            )}
           </div>
           <div className="header-actions">
-            {loc.pathname !== "/dashboard" && loc.pathname !== "/" && (
-              <button
-                className="icon-btn"
-                title="Go back"
-                onClick={() => (window.history.length > 1 ? nav(-1) : nav("/dashboard"))}
-              >
-                <ArrowLeft size={16} />
-              </button>
-            )}
             <div className="clock">
               <b>{now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</b>
               <small>
@@ -509,10 +505,10 @@ export default function App() {
             <Route path="/" element={<Dashboard s={s} nav={nav} />} />
             <Route path="/dashboard" element={<Dashboard s={s} nav={nav} />} />
             <Route path="/tables" element={<FloorPlan s={s} save={save} nav={nav} notify={notify} />} />
-            <Route path="/kitchen" element={<KitchenDisplay s={s} nav={nav} notify={notify} />} />
+            <Route path="/kitchen" element={<KitchenDisplay s={s} nav={nav} notify={notify} printKOT={(tableId, order, table) => printHtml(s, kotHtml(s, tableId, order, table), notify, "kitchen")} />} />
             <Route
               path="/billing/:tableId"
-              element={<BillingRoute s={s} persist={persistOrder} finish={finish} nav={nav} notify={notify} />}
+              element={<BillingRoute s={s} persist={persistOrder} finish={finish} nav={nav} notify={notify} printKOT={(tableId, order, table) => printHtml(s, kotHtml(s, tableId, order, table), notify, "kitchen")} />}
             />
             <Route path="/menu" element={<Menu s={s} save={save} notify={notify} />} />
             <Route path="/categories" element={<Categories s={s} save={save} notify={notify} />} />
@@ -522,8 +518,8 @@ export default function App() {
               element={<BillDetail s={s} notify={notify} reload={reload} />}
             />
             <Route path="/reports" element={<Reports s={s} />} />
-            <Route path="/settings" element={<SettingsPage s={s} save={save} notify={notify} />} />
-            <Route path="/settings/:section" element={<SettingsPage s={s} save={save} notify={notify} />} />
+            <Route path="/settings" element={<SettingsPage s={s} save={save} notify={notify} theme={theme} setTheme={setTheme} colors={colors} setColors={setColors} />} />
+            <Route path="/settings/:section" element={<SettingsPage s={s} save={save} notify={notify} theme={theme} setTheme={setTheme} colors={colors} setColors={setColors} />} />
             <Route path="*" element={<Dashboard s={s} nav={nav} />} />
           </Routes>
         </div>
@@ -556,7 +552,6 @@ function Heading({ eyebrow, title, desc, action }) {
   return (
     <div className="heading">
       <div>
-        <small>{eyebrow}</small>
         <h1>{title}</h1>
         <p>{desc}</p>
       </div>
@@ -727,7 +722,7 @@ function Dashboard({ s, nav }) {
               <BarChart data={chart}>
                 <CartesianGrid
                   vertical={false}
-                  stroke="#edf0f3"
+                  stroke="var(--line)"
                   strokeDasharray="3 3"
                 />
                 <XAxis
@@ -742,7 +737,7 @@ function Dashboard({ s, nav }) {
                     "Revenue",
                   ]}
                 />
-                <Bar dataKey="revenue" fill="#7f1d2d" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" fill="#0f6b52" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -989,7 +984,7 @@ function BillingRoute(props) {
   const { tableId } = useParams();
   return <Billing key={tableId} tableId={tableId} {...props} />;
 }
-function Billing({ tableId, s, persist, finish, nav, notify }) {
+function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
   const table = s.tables.find((t) => t.id === tableId);
   const isTakeaway = tableId === "takeaway";
   const fresh = () => ({ items: [], notes: "", startedAt: new Date().toISOString() });
@@ -1116,54 +1111,94 @@ function Billing({ tableId, s, persist, finish, nav, notify }) {
   ];
   return (
     <>
-      <Heading
-        eyebrow={isTakeaway ? "TAKEAWAY" : "BILLING"}
-        title={table?.name || "Takeaway order"}
-        desc="Select dishes, review the order, and settle the bill."
-        action={<Btn onClick={() => nav("/tables")} icon={Table2}>All tables</Btn>}
-      />
+      <div className="pos-bar">
+        <button className="back-btn" onClick={() => nav("/tables")}>
+          <ArrowLeft size={16} /> Tables
+        </button>
+        <div className="pos-title">
+          <h1>{table?.name || "Takeaway"}</h1>
+          <span className="chip">{isTakeaway ? "Takeaway" : "Dine-in"}</span>
+          {order.kotSent && <span className="chip kot"><ChefHat size={12} /> KOT sent</span>}
+          {order.startedAt && order.items.length > 0 && <small>Started {fmtTime(order.startedAt)} · {elapsed(order.startedAt)}</small>}
+        </div>
+      </div>
       <div className="billing">
-        <Panel title="Menu" desc="Tap a size to add it to the order">
-          <div className="search">
-            <Search size={15} />
-            <input placeholder="Search dishes…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <section className="menu-pane">
+          <div className="menu-tools">
+            <div className="search">
+              <Search size={16} />
+              <input placeholder="Search dishes…" value={q} onChange={(e) => setQ(e.target.value)} />
+              {q && <button className="clear-x" onClick={() => setQ("")} aria-label="Clear search"><X size={14} /></button>}
+            </div>
           </div>
-          <div className="chips">
-            <button className={cat === "All" ? "active" : ""} onClick={() => setCat("All")}>
-              All items
+          <div className="pill-row scroll">
+            <button className={"pill" + (cat === "All" ? " active" : "")} onClick={() => setCat("All")}>
+              All
             </button>
             {s.categories.map((c) => (
-              <button key={c} className={cat === c ? "active" : ""} onClick={() => setCat(c)}>
+              <button key={c} className={"pill" + (cat === c ? " active" : "")} onClick={() => setCat(c)}>
                 {c}
               </button>
             ))}
           </div>
-          {!dishes.length && <Empty title="No dishes found" desc="Try another search or category." />}
+          {!dishes.length && (
+            <Empty
+              title={s.dishes.length ? "No dishes found" : "Your menu is empty"}
+              desc={s.dishes.length ? "Try another search or category." : "Add dishes from Menu & Dishes to start billing."}
+            />
+          )}
           <div className="dish-grid">
-            {dishes.map((d) => (
-              <div className="dish-row" key={d.id}>
-                <span className={"food " + d.type}>●</span>
-                <div>
-                  <b>{d.name}</b>
-                  <small>{d.category}</small>
-                  <div className="variants">
+            {dishes.map((d) => {
+              const inCart = order.items.filter((x) => x.dishId === d.id).reduce((a, x) => a + x.quantity, 0);
+              const single = d.variants.length === 1;
+              return (
+                <article className={"dish-card" + (inCart ? " in-cart" : "")} key={d.id}>
+                  <button
+                    className="dish-pic"
+                    onClick={() => single && add(d, d.variants[0])}
+                    tabIndex={single ? 0 : -1}
+                    aria-label={single ? "Add " + d.name : d.name}
+                  >
+                    <FoodThumb dish={d} size="lg" />
+                    {inCart > 0 && <em className="dish-badge">{inCart}</em>}
+                    <i className={"veg-mark " + (d.type === "non-veg" ? "nonveg" : "veg")} title={d.type === "non-veg" ? "Non-veg" : "Veg"} />
+                  </button>
+                  <div className="dish-info">
+                    <b title={d.name}>{d.name}</b>
+                    <small>{d.category}</small>
+                  </div>
+                  <div className={"variants" + (single ? " single" : "")}>
                     {d.variants.map((v) => (
-                      <button key={v.name} onClick={() => add(d, v)}>
-                        {v.name} <b>{money(v.pricePaise)}</b> <Plus size={12} />
+                      <button key={v.name} onClick={() => add(d, v)} title={"Add " + d.name + " (" + v.name + ")"}>
+                        <span>{single ? "" : v.name}</span>
+                        <b>{money(v.pricePaise)}</b>
+                        <Plus size={14} />
                       </button>
                     ))}
                   </div>
-                </div>
-              </div>
-            ))}
+                </article>
+              );
+            })}
           </div>
-        </Panel>
-        <Panel title="Current order" desc={`${itemCount} total items`}>
+        </section>
+        <aside className="cart">
+          <div className="cart-head">
+            <div>
+              <h3>Current order</h3>
+              <small>{itemCount ? itemCount + " item" + (itemCount > 1 ? "s" : "") : "No items yet"}</small>
+            </div>
+            {order.items.length > 0 && (
+              <button className="text-btn danger" onClick={clearOrder}>
+                <Trash2 size={13} /> Clear
+              </button>
+            )}
+          </div>
           <div className="order-list">
             {order.items.length ? (
               order.items.map((i, idx) => (
                 <div className="order-item" key={i.dishId + "|" + i.variant}>
-                  <div>
+                  <FoodThumb dish={s.dishes.find((d) => d.id === i.dishId) || { name: i.name }} />
+                  <div className="oi-name">
                     <b>{i.name}</b>
                     <small>{i.variant} · {money(i.unitPricePaise)}</small>
                   </div>
@@ -1181,7 +1216,7 @@ function Billing({ tableId, s, persist, finish, nav, notify }) {
                     >
                       −
                     </button>
-                    {i.quantity}
+                    <span>{i.quantity}</span>
                     <button
                       aria-label="Increase"
                       onClick={() =>
@@ -1196,7 +1231,7 @@ function Billing({ tableId, s, persist, finish, nav, notify }) {
                       +
                     </button>
                   </div>
-                  <b>{money(i.unitPricePaise * i.quantity)}</b>
+                  <b className="oi-total">{money(i.unitPricePaise * i.quantity)}</b>
                   <button
                     className="remove"
                     aria-label="Remove item"
@@ -1207,40 +1242,67 @@ function Billing({ tableId, s, persist, finish, nav, notify }) {
                 </div>
               ))
             ) : (
-              <Empty title="Your order is empty" desc="Choose a dish from the menu to get started." />
-            )}
-          </div>
-          <label className="field-label">
-            Order notes
-            <textarea
-              value={order.notes || ""}
-              onChange={(e) => change((o) => ({ ...o, notes: e.target.value }))}
-              placeholder="Kitchen instructions…"
-            />
-          </label>
-          <div className="discount-row">
-            <label htmlFor="disc">Discount (₹)</label>
-            <input id="disc" type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
-          </div>
-          <div className="totals">
-            <div><span>Subtotal</span><b>{money(subtotal)}</b></div>
-            <div><span>Discount</span><b>− {money(discountP)}</b></div>
-            {taxRules.map((t, i) => (
-              <div key={i}>
-                <span>{t.name || "Tax"} ({Number(t.rate)}%){inclusive ? " incl." : ""}</span>
-                <b>{money(Math.round((taxBase * Number(t.rate)) / 100))}</b>
+              <div className="cart-empty">
+                <Utensils size={26} />
+                <b>Order is empty</b>
+                <small>Tap a dish on the left to add it.</small>
               </div>
-            ))}
-            {service > 0 && (
-              <div><span>Service charge ({s.settings.serviceChargeRate}%)</span><b>{money(service)}</b></div>
             )}
-            <div className="grand"><b>Grand total</b><strong>{money(total)}</strong></div>
           </div>
-          <Btn primary icon={CreditCard} onClick={() => { setErr(""); setPay(true); }}>
-            Proceed to payment →
-          </Btn>
-          <button className="clear" onClick={clearOrder}>Clear order</button>
-        </Panel>
+          <div className="cart-foot">
+            <div className="cart-inputs">
+              <label className="field-label">
+                Note for kitchen
+                <input
+                  value={order.notes || ""}
+                  onChange={(e) => change((o) => ({ ...o, notes: e.target.value }))}
+                  placeholder="e.g. less spicy"
+                />
+              </label>
+              <label className="field-label" htmlFor="disc">
+                Discount (₹)
+                <input id="disc" type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+              </label>
+            </div>
+            <div className="totals">
+              <div><span>Subtotal</span><b>{money(subtotal)}</b></div>
+              {discountP > 0 && <div><span>Discount</span><b>− {money(discountP)}</b></div>}
+              {taxRules.map((t, i) => (
+                <div key={i}>
+                  <span>{t.name || "Tax"} ({Number(t.rate)}%){inclusive ? " incl." : ""}</span>
+                  <b>{money(Math.round((taxBase * Number(t.rate)) / 100))}</b>
+                </div>
+              ))}
+              {service > 0 && (
+                <div><span>Service charge ({s.settings.serviceChargeRate}%)</span><b>{money(service)}</b></div>
+              )}
+              <div className="grand"><b>Total</b><strong>{money(total)}</strong></div>
+            </div>
+            <div className="cart-actions">
+              <button
+                className="btn send-kot"
+                disabled={!order.items.length}
+                onClick={async () => {
+                  const sent = { ...order, kotSent: true, kitchenStatus: "Preparing", kotSentAt: new Date().toISOString() };
+                  const saved = await persist(tableId, sent);
+                  if (saved === false) return;
+                  setOrder(sent);
+                  dirty.current = false;
+                  printKOT?.(tableId, sent, table?.name || "Takeaway");
+                }}
+              >
+                <ChefHat size={16} /> {order.kotSent ? "Resend KOT" : "Send KOT"}
+              </button>
+              <button
+                className="primary pay-btn"
+                disabled={!order.items.length}
+                onClick={() => { setErr(""); setPay(true); }}
+              >
+                <CreditCard size={16} /> Pay {money(total)}
+              </button>
+            </div>
+          </div>
+        </aside>
       </div>
       {pay && (
         <div className="overlay">
@@ -1275,11 +1337,14 @@ function Billing({ tableId, s, persist, finish, nav, notify }) {
                 </label>
                 <div className="quick-cash">
                   <button onClick={() => setCash(String(total / 100))}>Exact</button>
-                  {[100, 200, 500, 2000].map((n) => (
-                    <button key={n} onClick={() => setCash(String(Math.ceil(total / 100 / n) * n))}>
-                      ₹{Math.ceil(total / 100 / n) * n}
-                    </button>
-                  ))}
+                  {[...new Set([10, 50, 100, 500, 2000].map((n) => Math.ceil(total / 100 / n) * n))]
+                    .filter((v) => v * 100 > total)
+                    .slice(0, 4)
+                    .map((v) => (
+                      <button key={v} onClick={() => setCash(String(v))}>
+                        ₹{v.toLocaleString("en-IN")}
+                      </button>
+                    ))}
                 </div>
                 <div className={"change-due" + (cashP < total ? " short" : "")}>
                   <span>{cashP < total ? "Still to collect" : "Change to return"}</span>
@@ -1485,6 +1550,10 @@ function Menu({ s, save, notify }) {
               <button onClick={() => setModal(false)}>
                 <X />
               </button>
+            </div>
+            <div className="food-image-editor">
+              <div className="food-image-preview">{form.imageDataUrl ? <img src={form.imageDataUrl} alt="Food preview" /> : <Image size={28} />}</div>
+              <div><b>Food photo</b><small>Choose a clear photo. It is saved with this dish on this computer.</small><label className="btn food-upload">{form.imageDataUrl ? "Change image" : "Upload food image"}<input type="file" accept="image/*" hidden onChange={async e => { const f=e.target.files?.[0]; e.target.value=""; if(!f)return; try { setForm({...form,imageDataUrl:await readLogo(f)}); } catch(err) { notify(errMsg(err),"error"); } }} /></label>{form.imageDataUrl && <button className="text-btn danger" onClick={()=>setForm({...form,imageDataUrl:""})}>Remove image</button>}</div>
             </div>
             <label className="field-label">
               Dish name
@@ -1838,36 +1907,67 @@ const paperWidth = { "58mm": "52mm", "80mm": "72mm", A4: "170mm" };
 function receiptHtml(s, b) {
   const w = paperWidth[s.settings.receiptSize] || paperWidth["80mm"];
   const row = (l, r, extra = "") => `<div class="r ${extra}"><span>${l}</span><b>${r}</b></div>`;
-  const taxRows = b.taxBreakdown?.length
-    ? b.taxBreakdown.filter((t) => t.amountPaise).map((t) => row(`${escHtml(t.name)} (${escHtml(t.rate)}%)`, money(t.amountPaise)))
+  const taxLines = b.taxBreakdown?.length
+    ? b.taxBreakdown.filter((t) => t.amountPaise)
     : b.taxPaise
-      ? [row("Tax", money(b.taxPaise))]
+      ? [{ name: "Tax", rate: "", amountPaise: b.taxPaise }]
       : [];
+  const taxable = Math.max(0, (b.subtotalPaise || 0) - (b.discountPaise || 0));
+  const taxRows = taxLines.map((t) =>
+    row(`${escHtml(t.name)}${t.rate !== "" ? ` @ ${escHtml(t.rate)}%` : ""}`, money(t.amountPaise)),
+  );
+  const items = (b.items || [])
+    .map(
+      (i) => `<tr><td>${escHtml(i.name)}${i.variant ? `<small>${escHtml(i.variant)}</small>` : ""}</td><td class="n">${escHtml(i.quantity)}</td><td class="n">${money(i.unitPricePaise)}</td><td class="n"><b>${money(i.lineTotalPaise || i.unitPricePaise * i.quantity)}</b></td></tr>`,
+    )
+    .join("");
+  const when = validDate(b.createdAt);
+  const taxSummary = taxLines.length
+    ? `<div class="box"><div class="bt">Tax summary</div><table><tr><th></th><th class="n">Taxable</th><th class="n">Tax</th></tr>${taxLines
+        .map((t) => `<tr><td>${escHtml(t.name)}${t.rate !== "" ? ` ${escHtml(t.rate)}%` : ""}</td><td class="n">${money(taxable)}</td><td class="n">${money(t.amountPaise)}</td></tr>`)
+        .join("")}</table></div>`
+    : "";
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(b.billNumber)}</title><style>
-@page{margin:0}*{box-sizing:border-box}body{font:12px Arial,sans-serif;width:${w};margin:0 auto;padding:6mm 0;color:#000}
-.c{text-align:center}.r{display:flex;justify-content:space-between;gap:8px;margin:5px 0}.r span{flex:1}hr{border:0;border-top:1px dashed #555;margin:8px 0}
-.big{font-size:15px}h2{margin:4px 0;font-size:16px}p{margin:2px 0}img.logo{max-width:36mm;max-height:22mm;object-fit:contain;display:block;margin:0 auto 4px}
+@page{margin:0}*{box-sizing:border-box}body{font:12px Arial,Helvetica,sans-serif;width:${w};margin:0 auto;padding:6mm 0;color:#111}
+.c{text-align:center}.r{display:flex;justify-content:space-between;gap:8px;margin:4px 0}.r span{flex:1}
+hr{border:0;border-top:1px dashed #666;margin:8px 0}h2{margin:2px 0;font-size:16px}p{margin:2px 0}
+.mut{color:#555;font-size:11px}.inv{letter-spacing:.14em;font-weight:700;font-size:11px;margin:6px 0 0}
+img.logo{max-width:36mm;max-height:22mm;object-fit:contain;display:block;margin:0 auto 4px}
+.meta{display:flex;justify-content:space-between;gap:8px;font-size:11px;margin:2px 0}
+table{width:100%;border-collapse:collapse}th{font-size:10px;text-align:left;border-bottom:1px solid #111;padding:3px 0;text-transform:uppercase;letter-spacing:.04em}
+td{padding:4px 0;vertical-align:top}td small{display:block;color:#666;font-size:10px}.n{text-align:right;white-space:nowrap}th.n{text-align:right}
+.big{font-size:16px;border-top:2px solid #111;border-bottom:2px solid #111;padding:5px 0;margin:6px 0}
+.box{background:#f3f3f3;border-radius:4px;padding:6px 8px;margin-top:8px}.box .bt{font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}.box td,.box th{font-size:10px;padding:2px 0}
 </style></head><body>
 <div class="c">${s.hotel.logoDataUrl ? `<img class="logo" src="${s.hotel.logoDataUrl}">` : ""}<h2>${escHtml(s.hotel.name || "Hotel")}</h2>
-<p>${escHtml(s.hotel.address || "")}</p><p>${escHtml(s.hotel.phone || "")}</p>${s.hotel.gstin ? `<p>GSTIN: ${escHtml(s.hotel.gstin)}</p>` : ""}</div><hr>
-<p>Bill: <b>${escHtml(b.billNumber)}</b></p><p>Date: ${escHtml(fmtDateTime(b.createdAt))}</p><p>Table: ${escHtml(b.tableName)}</p><hr>
-${(b.items || []).map((i) => row(`${escHtml(i.name)} (${escHtml(i.variant)}) × ${escHtml(i.quantity)}`, money(i.lineTotalPaise || i.unitPricePaise * i.quantity))).join("")}<hr>
+${s.hotel.address ? `<p class="mut">${escHtml(s.hotel.address)}</p>` : ""}${s.hotel.phone ? `<p class="mut">${escHtml(s.hotel.phone)}</p>` : ""}${s.hotel.gstin ? `<p class="mut">GSTIN: ${escHtml(s.hotel.gstin)}</p>` : ""}
+<p class="inv">${taxLines.length ? "TAX INVOICE" : "BILL"}</p></div><hr>
+<div class="meta"><span>Bill no: <b>${escHtml(b.billNumber)}</b></span><span>Table: <b>${escHtml(b.tableName)}</b></span></div>
+<div class="meta"><span>Date: ${escHtml(when ? when.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "")}</span><span>Time: ${escHtml(when ? when.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "")}</span></div>
+<hr>
+<table><tr><th>Item</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr>${items}</table><hr>
 ${row("Subtotal", money(b.subtotalPaise))}${b.discountPaise ? row("Discount", "−" + money(b.discountPaise)) : ""}${taxRows.join("")}${b.serviceChargePaise ? row("Service charge", money(b.serviceChargePaise)) : ""}
-<hr>${row("TOTAL", money(b.grandTotalPaise), "big")}<hr>
-<p>Payment: ${escHtml(b.paymentMethod)} · ${escHtml(b.status)}</p>${b.cashReceivedPaise && b.status === "Paid" ? `<p>Cash: ${money(b.cashReceivedPaise)} · Change: ${money(b.changePaise || 0)}</p>` : ""}
+${row("Grand total", money(b.grandTotalPaise), "big")}
+<p class="mut">Payment: ${escHtml(b.paymentMethod)} · ${escHtml(b.status)}</p>${b.cashReceivedPaise && b.status === "Paid" ? `<p class="mut">Cash: ${money(b.cashReceivedPaise)} · Change: ${money(b.changePaise || 0)}</p>` : ""}
+${taxSummary}
 <div class="c" style="margin-top:12px;font-weight:bold">${escHtml(s.hotel.footer || "Thank you! Visit again.")}</div></body></html>`;
 }
 /* Prints silently on the printer chosen in Settings; falls back to the system dialog when none is chosen. */
-async function printHtml(s, html, notify) {
+function kotHtml(s, tableId, order, table) {
+  const rows = (order.items || []).map(i => `<div class="r"><b>${escHtml(i.quantity)} × ${escHtml(i.name)}</b><span>${escHtml(i.variant || "")}</span></div>`).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:0}body{font:14px Arial;width:72mm;margin:auto;padding:5mm 0;color:#111}.c{text-align:center}hr{border:0;border-top:1px dashed #333}.r{display:flex;justify-content:space-between;gap:8px;margin:12px 0}.note{font-size:12px}</style></head><body><div class="c"><h2>${escHtml(s.hotel.name || "HOTEL")}</h2><b>KITCHEN ORDER TICKET</b><h2>${escHtml(table || "Takeaway")}</h2><p>${escHtml(fmtDateTime(order.startedAt || new Date()))}</p></div><hr/>${rows}<hr/><p class="note">Order ID: ${escHtml(String(tableId).slice(-8).toUpperCase())}</p>${order.notes ? `<p><b>Note:</b> ${escHtml(order.notes)}</p>` : ""}</body></html>`;
+}
+async function printHtml(s, html, notify, role = "payment") {
   try {
+    const printerName = role === "kitchen" ? (s.settings.kitchenPrinterName || "") : (s.settings.paymentPrinterName || s.settings.printerName || "");
     if (window.hotelApp) {
       const r = await window.hotelApp.print(html, {
-        printerName: s.settings.printerName || "",
+        printerName,
         size: s.settings.receiptSize || "80mm",
-        silent: !!s.settings.printerName,
+        silent: !!printerName,
       });
       if (r?.success !== false)
-        notify(s.settings.printerName ? "Sent to " + s.settings.printerName : "Print dialog closed");
+        notify(printerName ? "Sent to " + printerName : "Print dialog closed");
     } else {
       const w = window.open("", "_blank");
       if (!w) throw Error("Pop-up blocked — allow pop-ups to print");
@@ -1902,12 +2002,12 @@ function BillDetail({ s, notify, reload }) {
         title={b.billNumber}
         desc={`Created ${fmtDateTime(b.createdAt)}`}
         action={
-          <Btn primary icon={Printer} onClick={() => printHtml(s, receiptHtml(s, b), notify)}>
+          <Btn primary icon={Printer} onClick={() => printHtml(s, receiptHtml(s, b), notify, "payment")}>
             Print receipt
           </Btn>
         }
       />
-      <div className="columns">
+      <div className="columns detail">
         <Panel title="Bill summary" desc={`${b.tableName} · ${b.status}`}>
           <div className="bill-items">
             {(b.items || []).map((i, idx) => (
@@ -1931,6 +2031,9 @@ function BillDetail({ s, notify, reload }) {
             {b.serviceChargePaise > 0 && <div><span>Service charge</span><b>{money(b.serviceChargePaise)}</b></div>}
             <div className="grand"><b>Grand total</b><strong>{money(b.grandTotalPaise)}</strong></div>
           </div>
+        </Panel>
+        <Panel title="Receipt preview" desc="Exactly what is printed for the customer">
+          <iframe className="receipt-frame" title="Receipt preview" srcDoc={receiptHtml(s, b)} />
         </Panel>
         <Panel title="Transaction information">
           {[
@@ -2005,10 +2108,10 @@ function Reports({ s }) {
           <div className="chart tall">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={days}>
-                <CartesianGrid vertical={false} stroke="#edf0f3" />
+                <CartesianGrid vertical={false} stroke="var(--line)" />
                 <XAxis dataKey="day" axisLine={false} tickLine={false} />
                 <Tooltip formatter={(v) => "₹" + v} />
-                <Bar dataKey="revenue" fill="#7f1d2d" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" fill="#0f6b52" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -2019,6 +2122,110 @@ function Reports({ s }) {
           />
         )}
       </Panel>
+    </>
+  );
+}
+function RatioBar({ c, small }) {
+  return (
+    <div className={"ratio-bar" + (small ? " sm" : "")} aria-hidden="true">
+      <i style={{ flex: 6, background: c.main }} />
+      <i style={{ flex: 3, background: c.secondary }} />
+      <i style={{ flex: 1, background: c.accent }} />
+    </div>
+  );
+}
+function MiniPreview({ colors, mode, label }) {
+  const p = buildPalette(colors, mode);
+  return (
+    <div>
+      <p className="tp-cap">{label}</p>
+      <div className="tp" style={p}>
+        <div className="tp-side">
+          <span className="on">Tables</span>
+          <span>Menu</span>
+          <span>Bills</span>
+        </div>
+        <div className="tp-main">
+          <h4>Table T5</h4>
+          <div className="tp-card"><span>Paneer Masala</span><b>₹280</b></div>
+          <div className="tp-card"><span>Butter Naan</span><b>₹45</b></div>
+          <span className="tp-btn">Pay ₹325</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+function ThemeSection({ theme, setTheme, colors, setColors, notify }) {
+  const cur = sanitize(colors || DEFAULT_COLORS);
+  const [hex, setHex] = useState(cur);
+  useEffect(() => setHex(cur), [colors]);
+  const set = (k, v) => {
+    setHex((h) => ({ ...h, [k]: v }));
+    if (isHex(v)) setColors(sameColors({ ...cur, [k]: v }, DEFAULT_COLORS) ? null : { ...cur, [k]: v });
+  };
+  const rows = [
+    ["main", "Main color", "60%", "Page background and cards. Pick a calm, light shade."],
+    ["secondary", "Secondary color", "30%", "Sidebar, panels and soft areas."],
+    ["accent", "Accent color", "10%", "Buttons, active menu, prices and highlights. Pick your brand color."],
+  ];
+  return (
+    <>
+      <p className="settings-intro">
+        Choose any 3 colors using the <b>60-30-10 rule</b>: 60% main, 30% secondary, 10% accent. The whole app changes instantly, and
+        Dark mode is created automatically from the same colors.
+      </p>
+      <b className="form-subhead">Quick picks</b>
+      <div className="theme-presets">
+        {PRESETS.map((p) => (
+          <button
+            key={p.name}
+            className={"theme-preset" + (sameColors(p.colors, cur) ? " on" : "")}
+            onClick={() => {
+              setColors(sameColors(p.colors, DEFAULT_COLORS) ? null : p.colors);
+              notify("Theme: " + p.name);
+            }}
+          >
+            <RatioBar c={p.colors} small />
+            {p.name}
+          </button>
+        ))}
+      </div>
+      <b className="form-subhead">Your own colors</b>
+      <RatioBar c={cur} />
+      <div className="color-rows">
+        {rows.map(([k, title, pct, hint]) => (
+          <div className="color-row" key={k}>
+            <label className="swatch" style={{ background: cur[k] }} title="Click to choose a color">
+              <input type="color" value={cur[k]} onChange={(e) => set(k, e.target.value)} aria-label={title} />
+            </label>
+            <div>
+              <b>{title} <em>{pct}</em></b>
+              <small>{hint}</small>
+            </div>
+            <input
+              type="text"
+              value={hex[k]}
+              maxLength={7}
+              onChange={(e) => set(k, e.target.value.startsWith("#") ? e.target.value : "#" + e.target.value)}
+              aria-label={title + " hex code"}
+            />
+          </div>
+        ))}
+      </div>
+      <b className="form-subhead">Mode</b>
+      <div className="seg" role="group" aria-label="Light or dark">
+        <button className={theme === "light" ? "on" : ""} onClick={() => setTheme("light")}><Sun size={15} /> Light</button>
+        <button className={theme === "dark" ? "on" : ""} onClick={() => setTheme("dark")}><Moon size={15} /> Dark</button>
+      </div>
+      <b className="form-subhead">Preview</b>
+      <div className="theme-previews">
+        <MiniPreview colors={cur} mode="light" label="Light mode" />
+        <MiniPreview colors={cur} mode="dark" label="Dark mode (automatic)" />
+      </div>
+      <p className="warning-note">
+        Text colors are picked automatically so everything stays readable. Paid / pending / error colors stay the same on purpose. Saved on this computer.
+      </p>
+      <Btn icon={RefreshCw} onClick={() => { setColors(null); notify("Theme reset to default"); }}>Reset to default</Btn>
     </>
   );
 }
@@ -2046,7 +2253,7 @@ const readLogo = (file) =>
   });
 const taxList = (st) =>
   st.taxes?.length ? st.taxes : [{ name: st.taxName || "GST", rate: st.taxRate ?? 0, enabled: true }];
-function SettingsPage({ s, save, notify }) {
+function SettingsPage({ s, save, notify, theme, setTheme, colors, setColors }) {
   const { section = "restaurant" } = useParams();
   const [hotel, setHotel] = useState(s.hotel),
     [settings, setSettings] = useState(s.settings),
@@ -2061,6 +2268,7 @@ function SettingsPage({ s, save, notify }) {
   }, [s.hotel, s.settings]);
   const tabs = [
     ["restaurant", "Hotel profile"],
+    ["theme", "Theme & colors"],
     ["tax", "Tax & billing"],
     ["printer", "Receipt & printer"],
     ["storage", "Storage"],
@@ -2080,9 +2288,13 @@ function SettingsPage({ s, save, notify }) {
   useEffect(() => {
     if (section === "printer" && printers === null) refreshPrinters();
   }, [section]);
-  const choosePrinter = async (name) => {
-    if (await save("settings", { ...s.settings, printerName: name }))
-      notify(name ? "Connected to " + name : "Printer disconnected — the system print dialog will be used");
+  const choosePrinter = async (role, name) => {
+    const key = role === "kitchen" ? "kitchenPrinterName" : "paymentPrinterName";
+    const updated = { ...s.settings, [key]: name };
+    if (await save("settings", updated)) {
+      setSettings(updated);
+      notify(name ? (role === "kitchen" ? "Kitchen printer connected" : "Payment printer connected") : "Printer disconnected");
+    }
   };
   const backup = async () => {
     try {
@@ -2232,6 +2444,9 @@ function SettingsPage({ s, save, notify }) {
               <Btn primary icon={Save} onClick={saveHotel}>Save profile</Btn>
             </>
           )}
+          {section === "theme" && (
+            <ThemeSection theme={theme} setTheme={setTheme} colors={colors} setColors={setColors} notify={notify} />
+          )}
           {section === "tax" && (
             <>
               <label className="check-field">
@@ -2292,77 +2507,15 @@ function SettingsPage({ s, save, notify }) {
           )}
           {section === "printer" && (
             <>
-              <p style={{ color: "var(--muted)" }}>
-                Choose the printer connected to this computer. Once connected, every <b>Print receipt</b> click prints straight to it — no dialog.
-              </p>
-              <div className="printer-list">
-                {loadingPrinters && <p style={{ color: "var(--muted)" }}>Looking for printers…</p>}
-                {!loadingPrinters && printers && !printers.length && (
-                  <Empty title="No printers found" desc={window.hotelApp ? "Connect a printer, install its driver, then press Refresh." : "Printer selection is available in the desktop app."} />
-                )}
-                {(printers || []).map((p) => (
-                  <button key={p.name} className={"printer-item" + (settings.printerName === p.name ? " active" : "")} onClick={() => choosePrinter(p.name)}>
-                    <Printer size={22} />
-                    <span>
-                      <b>{p.displayName || p.name}</b>
-                      <small>{p.isDefault ? "Windows default printer" : "Installed printer"}{p.description ? " · " + p.description : ""}</small>
-                    </span>
-                    {settings.printerName === p.name && <em className="pill">Connected</em>}
-                  </button>
-                ))}
-                {settings.printerName && printers && !printers.some((p) => p.name === settings.printerName) && (
-                  <div className="warning-note">Saved printer “{settings.printerName}” was not found. Check that it is switched on and connected.</div>
-                )}
-              </div>
-              <Btn icon={RefreshCw} onClick={refreshPrinters}>Refresh printers</Btn>
-              {settings.printerName && <Btn onClick={() => choosePrinter("")}>Disconnect printer</Btn>}
-              <label className="field-label" style={{ marginTop: 12 }}>
-                Receipt paper size
-                <select
-                  value={s.settings.receiptSize || "80mm"}
-                  onChange={(e) => save("settings", { ...s.settings, receiptSize: e.target.value })}
-                >
-                  {["58mm", "80mm", "A4"].map((x) => <option key={x}>{x}</option>)}
-                </select>
-              </label>
-              <div className="receipt-preview">
-                {s.hotel.logoDataUrl && <img src={s.hotel.logoDataUrl} alt="" style={{ maxWidth: 80, maxHeight: 60, display: "block", margin: "0 auto 6px" }} />}
-                <b>{s.hotel.name || "YOUR HOTEL"}</b>
-                <p>{s.hotel.address || "Hotel address"}</p>
-                <hr />
-                Bill: SAMPLE-0001
-                <div className="bill-items">
-                  <div><span>Paneer Tikka (Half) × 1</span><b>₹150.00</b></div>
-                  <div><span>Butter Roti × 2</span><b>₹50.00</b></div>
-                </div>
-                <hr />
-                <b>TOTAL ₹200.00</b>
-                <p>{s.hotel.footer}</p>
-              </div>
-              <Btn
-                primary
-                icon={Printer}
-                onClick={() =>
-                  printHtml(
-                    s,
-                    receiptHtml(s, {
-                      billNumber: "TEST-0001",
-                      createdAt: new Date().toISOString(),
-                      tableName: "Test",
-                      items: [{ name: "Test dish", variant: "Full", quantity: 1, unitPricePaise: 10000 }],
-                      subtotalPaise: 10000,
-                      discountPaise: 0,
-                      taxPaise: 0,
-                      grandTotalPaise: 10000,
-                      paymentMethod: "Cash",
-                      status: "Test print",
-                    }),
-                    notify,
-                  )
-                }
-              >
-                Test print
-              </Btn>
+              <p className="settings-intro">Connect two printers once. Kitchen orders go to the KOT printer; customer bills go to the payment printer.</p>
+              {!printers?.length && !loadingPrinters && <Empty title="Printer list not loaded" desc="Refresh printers after connecting the printer and installing its Windows driver." />}
+              {loadingPrinters && <p>Searching for installed printers…</p>}
+              {[{role:"kitchen",title:"Kitchen printer",desc:"Order tickets · KOT · No prices"},{role:"payment",title:"Payment printer",desc:"Customer bill · Tax · Payment details"}].map(cfg => {
+                const key = cfg.role === "kitchen" ? "kitchenPrinterName" : "paymentPrinterName";
+                return <div className="printer-config" key={cfg.role}><div className="printer-config-head"><span className="printer-icon"><Printer size={20}/></span><div><b>{cfg.title}</b><small>{cfg.desc}</small></div><em className={settings[key] ? "connected" : "not-connected"}>{settings[key] ? "Connected" : "Not connected"}</em></div><label className="field-label">Select device<select value={settings[key] || ""} onChange={e=>choosePrinter(cfg.role,e.target.value)}><option value="">Use system print dialog</option>{(printers || []).map(pr=><option key={pr.name} value={pr.name}>{pr.displayName || pr.name}{pr.isDefault ? " (Default)" : ""}</option>)}</select></label><div className="printer-config-foot"><small>{settings[key] || "No printer selected"}</small>{settings[key] && <button className="text-btn danger" onClick={()=>choosePrinter(cfg.role,"")}>Disconnect</button>}</div></div>;
+              })}
+              <div className="settings-inline-actions"><Btn icon={RefreshCw} onClick={refreshPrinters}>Refresh printer list</Btn><label className="field-label">Receipt paper size<select value={settings.receiptSize || "80mm"} onChange={e=>setSettings({...settings,receiptSize:e.target.value})}>{["58mm","80mm","A4"].map(x=><option key={x}>{x}</option>)}</select></label><Btn primary icon={Save} onClick={async()=>{if(await save("settings",settings))notify("Printer settings saved")}}>Save printer settings</Btn></div>
+              <p className="warning-note">Tip: Select a printer for each role. If left blank, Windows print dialog will open. Use separate physical printers for kitchen and customer receipts.</p>
             </>
           )}
           {section === "storage" && (

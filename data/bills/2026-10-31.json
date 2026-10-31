@@ -1,0 +1,132 @@
+[
+  {
+    "id": "5480a2fb-ec29-4e9c-b342-098748a1de58",
+    "billNumber": "BILL-0003",
+    "tableId": "table-1",
+    "tableName": "Table 1",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "d5",
+        "name": "Veg Biryani",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 22000,
+        "lineTotalPaise": 22000
+      }
+    ],
+    "subtotalPaise": 22000,
+    "discountPaise": 0,
+    "taxablePaise": 22000,
+    "taxPaise": 1100,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 1100
+      }
+    ],
+    "serviceChargePaise": 440,
+    "grandTotalPaise": 23540,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 23540,
+    "status": "Paid",
+    "createdAt": "2026-10-31T05:50:16.927Z",
+    "businessDate": "2026-10-31",
+    "changePaise": 0
+  },
+  {
+    "id": "a8dad59f-d82a-4590-87c2-30a4ef944f9a",
+    "billNumber": "BILL-0004",
+    "tableId": "table-6",
+    "tableName": "Table 6",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-c7e40ee7-f62e-43ab-9675-bf6ad2161f05",
+        "name": "pav bhaji",
+        "variant": "Full",
+        "quantity": 2,
+        "unitPricePaise": 12000,
+        "lineTotalPaise": 24000
+      }
+    ],
+    "subtotalPaise": 24000,
+    "discountPaise": 0,
+    "taxablePaise": 24000,
+    "taxPaise": 1200,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 1200
+      }
+    ],
+    "serviceChargePaise": 480,
+    "grandTotalPaise": 25680,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 50000,
+    "status": "Paid",
+    "createdAt": "2026-10-31T06:35:43.506Z",
+    "businessDate": "2026-10-31",
+    "changePaise": 24320
+  },
+  {
+    "id": "679ad63d-2b2c-48c5-b73b-38d0d97fb7e8",
+    "billNumber": "BILL-0005",
+    "tableId": "table-1",
+    "tableName": "Table 1",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-43b1a44f-65df-4553-9934-ca13d6a045d1",
+        "name": "biryani",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 15000,
+        "lineTotalPaise": 15000
+      },
+      {
+        "dishId": "dish-956b7919-1d66-4e75-843d-ae6f23420f49",
+        "name": "masala papad",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 3000,
+        "lineTotalPaise": 3000
+      },
+      {
+        "dishId": "dish-adbb3a71-33ee-4497-90b2-85fd86d324fe",
+        "name": "cold coffi",
+        "variant": "Full",
+        "quantity": 2,
+        "unitPricePaise": 5000,
+        "lineTotalPaise": 10000
+      }
+    ],
+    "subtotalPaise": 28000,
+    "discountPaise": 0,
+    "taxablePaise": 28000,
+    "taxPaise": 1400,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 1400
+      }
+    ],
+    "serviceChargePaise": 560,
+    "grandTotalPaise": 29960,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 50000,
+    "status": "Paid",
+    "createdAt": "2026-10-31T08:17:44.503Z",
+    "businessDate": "2026-10-31",
+    "changePaise": 20040
+  }
+]

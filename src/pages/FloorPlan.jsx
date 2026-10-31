@@ -1,27 +1,31 @@
 import { useMemo, useState } from "react";
-import {
-  Eye,
-  Plus,
-  Printer,
-  Search,
-  ShoppingBag,
-  Table2,
-  Utensils,
-  X,
-} from "lucide-react";
+import { ChefHat, Plus, ShoppingBag, Utensils, X } from "lucide-react";
 
-const statusColor = {
-  Available: "free",
-  Running: "running",
-  Paid: "paid",
-  "Running KOT": "kot",
+const ZONES = ["A/C", "Non A/C", "Bar"];
+const STATES = [
+  ["Available", "Free", "free"],
+  ["Running", "Running", "running"],
+  ["Running KOT", "In kitchen", "kot"],
+];
+const zoneOf = (t) => t.zone || "A/C";
+const rupees = (paise) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(
+    (Number(paise) || 0) / 100,
+  );
+const since = (v) => {
+  const d = new Date(v);
+  if (!v || isNaN(d)) return "";
+  const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+  return m < 60 ? m + " min" : Math.floor(m / 60) + "h " + (m % 60) + "m";
 };
 
 export default function FloorPlan({ s, save, nav, notify }) {
-  const [zone, setZone] = useState("A/C");
-  const [filter, setFilter] = useState("All tables");
+  const [zone, setZone] = useState("All");
+  const [filter, setFilter] = useState("All");
   const [adding, setAdding] = useState(false);
   const [tableName, setTableName] = useState("");
+  const [newZone, setNewZone] = useState("A/C");
+
   const tables = useMemo(
     () => (s.tables || []).filter((t) => t.enabled !== false),
     [s.tables],
@@ -31,11 +35,11 @@ export default function FloorPlan({ s, save, nav, notify }) {
     if (!order?.items?.length) return "Available";
     return order.kotSent ? "Running KOT" : "Running";
   };
-  const zones = [
-    { name: "A/C", tables },
-    { name: "Non A/C", tables: [] },
-    { name: "Bar", tables: [] },
-  ];
+  const inZone = tables.filter((t) => zone === "All" || zoneOf(t) === zone);
+  const shown = inZone.filter((t) => filter === "All" || stateFor(t) === filter);
+  const count = (st) => inZone.filter((t) => stateFor(t) === st).length;
+  const takeaway = s.orders?.takeaway;
+
   const addTable = async () => {
     const name = tableName.trim();
     if (!name) return notify("Enter a table name", "error");
@@ -48,7 +52,7 @@ export default function FloorPlan({ s, save, nav, notify }) {
         name,
         enabled: true,
         order: s.tables.length + 1,
-        zone,
+        zone: newZone,
       },
     ]);
     if (ok) {
@@ -57,62 +61,51 @@ export default function FloorPlan({ s, save, nav, notify }) {
       notify("Table added");
     }
   };
-  const shown = (
-    zone === "A/C" ? tables : tables.filter((t) => (t.zone || "A/C") === zone)
-  ).filter((t) => filter === "All tables" || stateFor(t) === filter);
+
   return (
     <section className="floor-page">
-      <div className="floor-toolbar">
-        <div className="floor-title">
-          <div>
-            <span className="eyebrow">RESTAURANT OPERATIONS</span>
-            <h1>Table View</h1>
-            <p>Manage floor tables, active orders and kitchen tickets.</p>
-          </div>
-          <div className="floor-quick">
-            <button className="btn" onClick={() => nav("/billing/takeaway")}>
-              <ShoppingBag size={15} /> Take Away
-            </button>
-            <button className="primary" onClick={() => setAdding((v) => !v)}>
-              <Plus size={15} /> Add Table
-            </button>
-          </div>
+      <div className="page-head">
+        <div>
+          <h1>Tables</h1>
+          <p>
+            {new Date().toLocaleDateString("en-IN", {
+              weekday: "short",
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })}
+            {" · "}
+            {count("Available")} free · {count("Running") + count("Running KOT")} running
+          </p>
         </div>
-        <div className="floor-actions">
-          <div className="floor-tabs">
-            {["A/C", "Non A/C", "Bar"].map((z) => (
-              <button
-                key={z}
-                className={zone === z ? "active" : ""}
-                onClick={() => setZone(z)}
-              >
-                {z}
-              </button>
-            ))}
-          </div>
-          <label className="floor-search">
-            <Search size={15} />
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option>All tables</option>
-              <option>Available</option>
-              <option>Running</option>
-              <option>Running KOT</option>
-            </select>
-          </label>
+        <div className="page-head-actions">
           <button className="btn" onClick={() => nav("/kitchen")}>
-            <Utensils size={15} /> Kitchen / KOT
+            <Utensils size={16} /> Kitchen
+          </button>
+          <button className="btn" onClick={() => nav("/billing/takeaway")}>
+            <ShoppingBag size={16} />
+            {takeaway?.items?.length ? "Continue takeaway" : "+ Takeaway"}
+          </button>
+          <button className="primary" onClick={() => setAdding((v) => !v)}>
+            <Plus size={16} /> Add table
           </button>
         </div>
       </div>
+
       {adding && (
         <div className="floor-add">
           <input
             autoFocus
-            placeholder="Table name e.g. Table 29"
+            placeholder="Table name e.g. T13"
             value={tableName}
             onChange={(e) => setTableName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addTable()}
           />
+          <select value={newZone} onChange={(e) => setNewZone(e.target.value)} aria-label="Section">
+            {ZONES.map((z) => (
+              <option key={z}>{z}</option>
+            ))}
+          </select>
           <button className="primary" onClick={addTable}>
             Save table
           </button>
@@ -121,96 +114,90 @@ export default function FloorPlan({ s, save, nav, notify }) {
           </button>
         </div>
       )}
-      <div className="floor-legend">
-        <span>
-          <i className="legend-free" /> Available table
-        </span>
-        <span>
-          <i className="legend-running" /> Running table
-        </span>
-        <span>
-          <i className="legend-paid" /> Paid / recently closed
-        </span>
-        <span>
-          <i className="legend-kot" /> Running KOT
-        </span>
-        <span className="legend-note">{shown.length} tables shown</span>
+
+      <div className="floor-bar">
+        <div className="pill-row">
+          {["All", ...ZONES].map((z) => {
+            const n = tables.filter((t) => z === "All" || zoneOf(t) === z).length;
+            return (
+              <button key={z} className={"pill" + (zone === z ? " active" : "")} onClick={() => setZone(z)}>
+                {z === "All" ? "All" : z} <span>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="legend-filter">
+          {STATES.map(([key, label, cls]) => (
+            <button
+              key={key}
+              className={filter === key ? "on" : ""}
+              onClick={() => setFilter(filter === key ? "All" : key)}
+              title={"Show only " + label.toLowerCase() + " tables"}
+            >
+              <i className={"dot " + cls} /> {label} <b>{count(key)}</b>
+            </button>
+          ))}
+        </div>
       </div>
-      {zones.map((group) => {
-        const groupTables = group.name === zone ? shown : [];
-        if (group.name !== zone) return null;
-        return (
-          <div className="floor-zone" key={group.name}>
-            <div className="zone-heading">
-              <h2>{group.name}</h2>
-              <span>{groupTables.length} tables</span>
-            </div>
-            {groupTables.length ? (
-              <div className="floor-grid">
-                {groupTables.map((table, index) => {
-                  const state = stateFor(table);
-                  const order = s.orders?.[table.id];
-                  const amount = (order?.items || []).reduce(
-                    (sum, item) => sum + item.unitPricePaise * item.quantity,
-                    0,
-                  );
-                  return (
-                    <button
-                      key={table.id}
-                      className={`floor-table ${statusColor[state] || "free"}`}
-                      onClick={() => nav(`/billing/${table.id}`)}
-                    >
-                      <div className="floor-table-head">
-                        <span className="floor-table-icon">
-                          <Table2 size={15} />
-                        </span>
-                        <span className="floor-state-dot" />
-                      </div>
-                      <strong>{table.name}</strong>
-                      <small>
-                        {state === "Available"
-                          ? "Ready for guests"
-                          : `${order.items.reduce((a, i) => a + i.quantity, 0)} items · ${state}`}
-                      </small>
-                      {order?.items?.length ? (
-                        <b className="floor-total">
-                          ₹
-                          {(amount / 100).toLocaleString("en-IN", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </b>
-                      ) : (
-                        <span className="floor-table-open">
-                          Open table <span>→</span>
-                        </span>
+
+      {shown.length ? (
+        <div className="floor-grid">
+          {shown.map((table) => {
+            const state = stateFor(table);
+            const cls = STATES.find((x) => x[0] === state)?.[2] || "free";
+            const label = STATES.find((x) => x[0] === state)?.[1] || "Free";
+            const order = s.orders?.[table.id];
+            const items = order?.items || [];
+            const amount = items.reduce((sum, i) => sum + i.unitPricePaise * i.quantity, 0);
+            const qty = items.reduce((a, i) => a + i.quantity, 0);
+            return (
+              <button
+                key={table.id}
+                className={"floor-table " + cls}
+                onClick={() => nav(`/billing/${table.id}`)}
+              >
+                <div className="ft-top">
+                  <strong>{table.name}</strong>
+                  <small>{zoneOf(table)}</small>
+                </div>
+                <span className={"ft-state " + cls}>
+                  <i className={"dot " + cls} /> {label}
+                </span>
+                {items.length ? (
+                  <>
+                    <b className="ft-amount">{rupees(amount)}</b>
+                    <small className="ft-meta">
+                      {qty} item{qty > 1 ? "s" : ""}
+                      {since(order.startedAt) ? " · " + since(order.startedAt) : ""}
+                      {order.kotSent && (
+                        <>
+                          {" · "}
+                          <ChefHat size={11} /> KOT
+                        </>
                       )}
-                      {state !== "Available" && (
-                        <span className="floor-table-tools">
-                          <span title="Open order">
-                            <Eye size={13} />
-                          </span>
-                          <span title="Print KOT">
-                            <Printer size={13} />
-                          </span>
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="floor-empty">
-                <Table2 size={23} />
-                <b>No tables in {zone}</b>
-                <span>Add a table to start taking orders in this section.</span>
-                <button className="text-btn" onClick={() => setAdding(true)}>
-                  + Add table
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
+                    </small>
+                  </>
+                ) : (
+                  <b className="ft-open">Tap to open</b>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="floor-empty">
+          <Utensils size={26} />
+          <b>{tables.length ? "No tables match this filter" : "No tables yet"}</b>
+          <span>
+            {tables.length
+              ? "Try another section or status."
+              : "Add your first table to start taking orders."}
+          </span>
+          <button className="text-btn" onClick={() => (tables.length ? (setZone("All"), setFilter("All")) : setAdding(true))}>
+            {tables.length ? "Clear filters" : "+ Add table"}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

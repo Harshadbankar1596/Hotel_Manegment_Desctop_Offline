@@ -1,10 +1,26 @@
-import { Image } from "lucide-react";
+import { Utensils } from "lucide-react";
 
-const palettes = ["food-saffron", "food-rose", "food-green", "food-cream", "food-plum"];
-export default function FoodThumb({ dish = {} }) {
-  const seed = String(dish.id || dish.name || "dish").split("").reduce((n, c) => n + c.charCodeAt(0), 0);
-  const palette = palettes[seed % palettes.length];
-  const name = String(dish.name || "").toLowerCase();
-  const icon = name.includes("paneer") || name.includes("tikka") ? "🍢" : name.includes("biryani") || name.includes("rice") ? "🍛" : name.includes("pizza") ? "🍕" : name.includes("burger") ? "🍔" : name.includes("tea") || name.includes("coffee") ? "☕" : name.includes("salad") ? "🥗" : name.includes("cake") || name.includes("sweet") ? "🍰" : "🍽️";
-  return <span className={`food-thumb ${palette}`} aria-label={`${dish.name || "Dish"} image`}><span>{icon}</span></span>;
+/* Soft, stable colour per dish so a menu without photos still looks friendly. */
+const hueOf = (name = "") => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return h;
+};
+
+export default function FoodThumb({ dish, size = "sm" }) {
+  const hue = hueOf(dish?.name);
+  const style = dish?.imageDataUrl
+    ? undefined
+    : { "--h": hue };
+  return (
+    <div className={"food-thumb " + size + (dish?.imageDataUrl ? "" : " no-photo")} style={style}>
+      {dish?.imageDataUrl ? (
+        <img src={dish.imageDataUrl} alt={dish.name || "Food"} loading="lazy" />
+      ) : (
+        <span>
+          {size === "lg" ? (dish?.name || "?").trim().charAt(0).toUpperCase() : <Utensils size={16} />}
+        </span>
+      )}
+    </div>
+  );
 }

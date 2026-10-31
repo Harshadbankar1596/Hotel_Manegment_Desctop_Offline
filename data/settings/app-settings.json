@@ -4,7 +4,7 @@
   "taxMode": "exclusive",
   "serviceChargeRate": 2,
   "billPrefix": "BILL-",
-  "nextBillNumber": 3,
+  "nextBillNumber": 6,
   "tableCount": 12,
   "receiptSize": "80mm",
   "printerName": "",
