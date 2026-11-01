@@ -50,6 +50,8 @@ import {
   LayoutGrid,
   Send,
   ChevronRight,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import FloorPlan from "./pages/FloorPlan.jsx";
 import KitchenDisplay from "./pages/KitchenDisplay.jsx";
@@ -312,6 +314,33 @@ export default function App() {
       colors ? localStorage.setItem("hotel-colors", JSON.stringify(colors)) : localStorage.removeItem("hotel-colors");
     } catch {}
   }, [theme, colors]);
+  const [fullscreen, setFullscreen] = useState(false);
+  const toggleFullscreen = async () => {
+    if (window.hotelApp?.toggleFullscreen) {
+      setFullscreen(await window.hotelApp.toggleFullscreen());
+    } else if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    }
+  };
+  useEffect(() => {
+    // Electron: main process owns F11 and reports state changes
+    const off = window.hotelApp?.onFullscreenChange?.(setFullscreen);
+    window.hotelApp?.isFullscreen?.().then(setFullscreen).catch(() => {});
+    // Browser (dev) fallback
+    const onFs = () => { if (!window.hotelApp) setFullscreen(!!document.fullscreenElement); };
+    const onKey = (e) => {
+      if (e.key === "F11" && !window.hotelApp) { e.preventDefault(); toggleFullscreen(); }
+    };
+    document.addEventListener("fullscreenchange", onFs);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      off?.();
+      document.removeEventListener("fullscreenchange", onFs);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
   const save = async (k, v) => {
     const prev = sRef.current[k];
     sRef.current = { ...sRef.current, [k]: v };
@@ -493,6 +522,9 @@ export default function App() {
             <b>{now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</b>
             <small>{now.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}</small>
           </div>
+          <button className="icon-btn" title={fullscreen ? "Exit full screen (F11)" : "Full screen (F11)"} onClick={toggleFullscreen}>
+            {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
           <button className="icon-btn" title={theme === "light" ? "Dark theme" : "Light theme"} onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}>
             {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
           </button>
@@ -987,6 +1019,41 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
   const [order, setOrder] = useState(() => s.orders[tableId] || fresh());
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
+  const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const drag = useRef({ down: false });
+  const gridRef = useRef(null);
+  const [bubbleY, setBubbleY] = useState(null);
+  // which letter is under the pointer (geometry based, so dragging along the rail is smooth)
+  const letterAt = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const pad = 5;
+    const n = LETTERS.length + 1.4; // "All" is a little taller
+    const y = Math.min(Math.max(e.clientY - r.top - pad, 0), r.height - pad * 2 - 0.01);
+    const pos = (y / (r.height - pad * 2)) * n;
+    if (pos < 1.4) return "";
+    return LETTERS[Math.min(LETTERS.length - 1, Math.floor(pos - 1.4))];
+  };
+  const yAt = (e) => {
+    const body = e.currentTarget.parentElement.getBoundingClientRect();
+    return Math.min(Math.max(e.clientY - body.top, 28), body.height - 28);
+  };
+  const billRef = useRef(null);
+  // Fit the billing area to the window so only the dish list / cart scroll, never the page
+  useEffect(() => {
+    const fit = () => {
+      const el = billRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      el.style.setProperty("--bill-h", Math.max(360, window.innerHeight - top - 36) + "px");
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    const t = setTimeout(fit, 150);
+    return () => { window.removeEventListener("resize", fit); clearTimeout(t); };
+  }, []);
+  const [kind, setKind] = useState("all"); // all | veg | non-veg
+  const [letter, setLetter] = useState(""); // clicked (locked) letter
+  const [hoverLetter, setHoverLetter] = useState(""); // letter under the mouse
   const [discount, setDiscount] = useState("0");
   const [method, setMethod] = useState("Cash");
   const [cash, setCash] = useState("");
@@ -1020,12 +1087,17 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
   );
   if (!table && !isTakeaway)
     return <Empty title="Table not found" desc="This table was deleted or renamed. Go back to Tables." />;
-  const dishes = s.dishes.filter(
+  const baseDishes = s.dishes.filter(
     (d) =>
       d.available !== false &&
       (cat === "All" || d.category === cat) &&
+      (kind === "all" || (kind === "veg" ? d.type !== "non-veg" : d.type === "non-veg")) &&
       d.name.toLowerCase().includes(q.toLowerCase()),
   );
+  const firstLetter = (d) => (d.name || "").trim().charAt(0).toUpperCase();
+  const lettersWith = new Set(baseDishes.map(firstLetter));
+  const activeLetter = hoverLetter || letter;
+  const dishes = activeLetter ? baseDishes.filter((d) => firstLetter(d) === activeLetter) : baseDishes;
   const subtotal = order.items.reduce((a, i) => a + i.unitPricePaise * i.quantity, 0);
   const discountP = Math.min(subtotal, Math.max(0, paise(discount)));
   const net = subtotal - discountP;
@@ -1162,13 +1234,21 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
           })}
         </ol>
       </div>
-      <div className="billing">
+      <div className="billing" ref={billRef}>
         <section className="menu-pane">
           <div className="menu-tools">
             <div className="search">
               <Search size={16} />
               <input placeholder="Search dishes…" value={q} onChange={(e) => setQ(e.target.value)} />
               {q && <button className="clear-x" onClick={() => setQ("")} aria-label="Clear search"><X size={14} /></button>}
+            </div>
+            <div className="kind-filter" role="group" aria-label="Food type">
+              {[["all", "All"], ["veg", "Veg"], ["non-veg", "Non-veg"]].map(([k, label]) => (
+                <button key={k} className={"kind-btn " + k + (kind === k ? " active" : "")} onClick={() => setKind(k)} aria-pressed={kind === k}>
+                  {k !== "all" && <i className={"veg-mark " + (k === "veg" ? "veg" : "nonveg")} />}
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
           <div className="pill-row scroll">
@@ -1181,13 +1261,61 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
               </button>
             ))}
           </div>
-          {!dishes.length && (
+          <div className="menu-body">
+          <nav
+            className="az-rail"
+            aria-label="Filter dishes by first letter"
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture?.(e.pointerId);
+              const L = letterAt(e);
+              drag.current = { down: true, moved: false, start: L, before: letter };
+              setLetter(L);
+              setHoverLetter("");
+              setBubbleY(yAt(e));
+            }}
+            onPointerMove={(e) => {
+              const L = letterAt(e);
+              setBubbleY(yAt(e));
+              if (drag.current.down) {
+                if (L !== drag.current.start) drag.current.moved = true;
+                setLetter(L);
+              } else setHoverLetter(L);
+            }}
+            onPointerUp={(e) => {
+              const d = drag.current;
+              drag.current = { down: false };
+              // plain tap on the already-selected letter clears it
+              if (d.down && !d.moved && d.start === d.before && d.start !== "") setLetter("");
+              if (e.pointerType !== "mouse") setBubbleY(null);
+            }}
+            onPointerCancel={() => { drag.current = { down: false }; setBubbleY(null); }}
+            onPointerLeave={() => { if (!drag.current.down) { setHoverLetter(""); setBubbleY(null); } }}
+          >
+            {["", ...LETTERS].map((L) => {
+              const has = L === "" || lettersWith.has(L);
+              const on = (hoverLetter || letter) === L;
+              return (
+                <span
+                  key={L || "all"}
+                  className={"az-btn" + (L === "" ? " az-all" : "") + (on ? (letter === L && !hoverLetter ? " active" : " hover") : "") + (has ? "" : " none")}
+                >
+                  {L || "All"}
+                </span>
+              );
+            })}
+          </nav>
+          {bubbleY != null && activeLetter && (
+            <div className="az-bubble" style={{ top: bubbleY }} key={activeLetter}>
+              <span>{activeLetter}<small>{baseDishes.filter((d) => firstLetter(d) === activeLetter).length} dishes</small></span>
+            </div>
+          )}
+          <div className="dish-grid fade" key={activeLetter + "|" + kind + "|" + cat} ref={gridRef}>
+            {!dishes.length && (<div className="dish-empty">
             <Empty
               title={s.dishes.length ? "No dishes found" : "Your menu is empty"}
-              desc={s.dishes.length ? "Try another search or category." : "Add dishes from Menu & Dishes to start billing."}
+              desc={s.dishes.length ? "Try another search, letter or category." : "Add dishes from Menu & Dishes to start billing."}
             />
-          )}
-          <div className="dish-grid">
+            </div>)}
             {dishes.map((d) => {
               const inCart = order.items.filter((x) => x.dishId === d.id).reduce((a, x) => a + x.quantity, 0);
               const single = d.variants.length === 1;
@@ -1219,6 +1347,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
                 </article>
               );
             })}
+          </div>
           </div>
         </section>
         <aside className="cart">

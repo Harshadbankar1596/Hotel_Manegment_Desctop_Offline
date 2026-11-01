@@ -327,6 +327,22 @@ function createWindow() {
   win.removeMenu();
   win.setMenuBarVisibility(false);
   win.once("ready-to-show", () => win.show());
+  // F11 toggles full screen (the menu bar is removed, so handle it here); Esc leaves it
+  const sendFs = () => {
+    if (!win.isDestroyed()) win.webContents.send("window:fullscreen-changed", win.isFullScreen());
+  };
+  win.on("enter-full-screen", sendFs);
+  win.on("leave-full-screen", sendFs);
+  win.webContents.on("before-input-event", (e, input) => {
+    if (input.type !== "keyDown") return;
+    if (input.key === "F11") {
+      e.preventDefault();
+      win.setFullScreen(!win.isFullScreen());
+    } else if (input.key === "Escape" && win.isFullScreen()) {
+      e.preventDefault();
+      win.setFullScreen(false);
+    }
+  });
   win.on("page-title-updated", (e) => e.preventDefault());
   win.webContents.on("render-process-gone", (_e, d) =>
     dialog.showErrorBox("Optimize", "The window crashed (" + d.reason + "). Please reopen the app."),
@@ -366,6 +382,12 @@ app.whenReady().then(() => {
       throw e;
     }
   });
+  ipcMain.handle("window:toggle-fullscreen", () => {
+    if (!win) return false;
+    win.setFullScreen(!win.isFullScreen());
+    return win.isFullScreen();
+  });
+  ipcMain.handle("window:is-fullscreen", () => !!win && win.isFullScreen());
   ipcMain.handle("data:load", async () => {
     if (!root) {
       try {

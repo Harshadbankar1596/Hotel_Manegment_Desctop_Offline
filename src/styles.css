@@ -126,14 +126,29 @@ p {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
+/* slim single-line scrollbars everywhere */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
+  background: transparent;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--line-2);
-  border-radius: 10px;
-  border: 2px solid var(--bg);
+  background: rgba(128, 135, 130, 0.4);
+  border-radius: 999px;
+  border: 0;
+  min-height: 40px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand);
 }
 
 /* ---------- Buttons & inputs ---------- */
@@ -859,7 +874,6 @@ tr.click:hover td {
   flex-wrap: nowrap;
   overflow-x: auto;
   padding-bottom: 6px;
-  scrollbar-width: thin;
 }
 .pill {
   display: inline-flex;
@@ -1151,7 +1165,212 @@ tr.click:hover td {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
+}
+/* veg / non-veg filter (under search) */
+.menu-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.menu-tools .search {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  border-radius: 12px;
+}
+.menu-tools .search input {
+  min-height: 38px;
+}
+.menu-pane .pill-row.scroll {
+  padding-bottom: 0;
+}
+.menu-pane .pill {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+.kind-filter {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+}
+.kind-btn {
+  background: transparent;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background 0.15s, color 0.15s;
+}
+.kind-btn .veg-mark {
+  position: static;
+  flex: none;
+}
+.kind-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.kind-btn.active {
+  background: var(--text);
+  color: var(--bg);
+}
+.kind-btn.veg.active {
+  background: var(--ok);
+  color: #fff;
+}
+.kind-btn.non-veg.active {
+  background: var(--bad);
+  color: #fff;
+}
+.kind-btn.active .veg-mark {
+  background: #fff;
+  border-color: #fff;
+}
+
+/* A-Z index rail (contacts-style): fixed, all letters visible, drag to scrub */
+.menu-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.az-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 5px 3px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  cursor: pointer;
+}
+.az-btn {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: clamp(9px, 1.65vh, 12px);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  pointer-events: none;
+  transition: background 0.12s, color 0.12s, transform 0.12s;
+}
+.az-btn.az-all {
+  flex-grow: 1.4;
+  font-size: clamp(8px, 1.4vh, 10px);
+  letter-spacing: 0.02em;
+  color: var(--brand);
+}
+.az-btn.none {
+  color: var(--muted);
+  font-weight: 500;
+}
+.az-btn.hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+  transform: scale(1.15);
+}
+.az-btn.active {
+  background: var(--brand);
+  color: #fff;
+  font-weight: 800;
+}
+.az-bubble {
+  position: absolute;
+  left: 40px;
+  z-index: 5;
+  min-width: 54px;
+  height: 54px;
+  padding: 0 14px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  background: var(--brand);
+  color: #fff;
+  border-radius: 16px 16px 16px 4px;
+  font-size: 26px;
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  animation: bubbleIn 0.12s ease-out;
+}
+.az-bubble small {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.85;
+  margin-top: -2px;
+}
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(-50%) scale(0.85); }
+  to { opacity: 1; transform: translateY(-50%) scale(1); }
+}
+@keyframes dishesIn {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+.dish-grid.fade {
+  animation: dishesIn 0.16s ease-out;
+}
+@media (min-width: 1001px) {
+  .billing {
+    height: var(--bill-h, calc(100vh - 200px));
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .menu-pane {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .menu-body {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .az-rail {
+    height: 100%;
+  }
+  .dish-grid {
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+    align-content: start;
+    padding: 2px 8px 12px 2px;
+  }
+  .billing .cart {
+    position: static;
+    height: 100%;
+    max-height: none;
+  }
+}
+@media (max-width: 1000px) {
+  .az-rail {
+    height: 60vh;
+    position: sticky;
+    top: 8px;
+  }
 }
 .dish-grid {
   display: grid;
@@ -3042,4 +3261,54 @@ tr.click:hover td {
   --text: var(--fx-text);
   --muted: var(--fx-muted);
   color: var(--fx-text);
+}
+
+/* empty result stays inside the dish area so the A-Z rail keeps its height */
+.dish-empty {
+  grid-column: 1 / -1;
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+}
+
+/* roomier order list: tighter footer so the item list (and its scrollbar) gets more height */
+.billing .cart-head {
+  padding: 14px 18px 8px;
+}
+.billing .cart .order-list {
+  min-height: 160px;
+}
+.billing .cart-foot {
+  padding: 10px 18px 12px;
+}
+.billing .cart-inputs .field-label {
+  margin-bottom: 0;
+  font-size: 11.5px;
+}
+.billing .cart-inputs input {
+  min-height: 34px;
+  margin-top: 4px;
+}
+.billing .totals {
+  gap: 4px;
+}
+.billing .totals > div {
+  font-size: 13px;
+}
+.billing .totals .grand {
+  margin-top: 4px;
+  padding-top: 8px;
+}
+.billing .totals .grand strong {
+  font-size: 22px;
+}
+.billing .cart-actions {
+  margin-top: 10px;
+}
+.billing .cart-actions .btn,
+.billing .cart-actions .primary {
+  min-height: 46px;
+}
+.billing .cart-inputs {
+  margin-bottom: 8px;
 }

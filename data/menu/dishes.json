@@ -101,7 +101,7 @@
     "name": "coffi",
     "category": "Beverages",
     "type": "veg",
-    "available": false,
+    "available": true,
     "variants": [
       {
         "name": "Full",
