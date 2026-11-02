@@ -98,5 +98,135 @@
     "createdAt": "2026-11-01T03:07:21.025Z",
     "businessDate": "2026-11-01",
     "changePaise": 23250
+  },
+  {
+    "id": "650a0ef9-3550-4024-9d71-5450fcafbbe4",
+    "billNumber": "BILL-0012",
+    "tableId": "table-1",
+    "tableName": "Table 1",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-58721a65-7f00-4541-a7ff-3b542315e57b",
+        "name": "panner tikka",
+        "variant": "Full",
+        "quantity": 2,
+        "unitPricePaise": 10000,
+        "lineTotalPaise": 20000
+      },
+      {
+        "dishId": "dish-0356be77-d62d-40f6-bcb9-2845359be44f",
+        "name": "chiken handi",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 40000,
+        "lineTotalPaise": 40000
+      }
+    ],
+    "subtotalPaise": 60000,
+    "discountPaise": 0,
+    "taxablePaise": 60000,
+    "taxPaise": 3000,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 3000
+      }
+    ],
+    "serviceChargePaise": 1200,
+    "grandTotalPaise": 64200,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 64200,
+    "status": "Paid",
+    "createdAt": "2026-11-01T08:54:41.431Z",
+    "businessDate": "2026-11-01",
+    "changePaise": 0
+  },
+  {
+    "id": "6b81d95f-885b-4adc-9b5c-51fab6c55976",
+    "billNumber": "BILL-0013",
+    "tableId": "takeaway",
+    "tableName": "Takeaway",
+    "orderType": "Takeaway",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-c7e40ee7-f62e-43ab-9675-bf6ad2161f05",
+        "name": "pav bhaji",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 12000,
+        "lineTotalPaise": 12000
+      }
+    ],
+    "subtotalPaise": 12000,
+    "discountPaise": 0,
+    "taxablePaise": 12000,
+    "taxPaise": 600,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 600
+      }
+    ],
+    "serviceChargePaise": 240,
+    "grandTotalPaise": 12840,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 12840,
+    "status": "Paid",
+    "createdAt": "2026-11-01T08:55:22.439Z",
+    "businessDate": "2026-11-01",
+    "changePaise": 0
+  },
+  {
+    "id": "0a4ed7e6-8af2-4bcf-9b3e-1cb98868811f",
+    "billNumber": "BILL-0014",
+    "tableId": "table-1",
+    "tableName": "Table 1",
+    "orderType": "Dine-in",
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-43b1a44f-65df-4553-9934-ca13d6a045d1",
+        "name": "biryani",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 15000,
+        "lineTotalPaise": 15000
+      },
+      {
+        "dishId": "dish-c7e40ee7-f62e-43ab-9675-bf6ad2161f05",
+        "name": "pav bhaji",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 12000,
+        "lineTotalPaise": 12000
+      }
+    ],
+    "subtotalPaise": 27000,
+    "discountPaise": 0,
+    "taxablePaise": 27000,
+    "taxPaise": 1350,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 1350
+      }
+    ],
+    "serviceChargePaise": 540,
+    "grandTotalPaise": 28890,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 50000,
+    "status": "Paid",
+    "createdAt": "2026-11-01T12:22:30.927Z",
+    "businessDate": "2026-11-01",
+    "changePaise": 21110
   }
 ]

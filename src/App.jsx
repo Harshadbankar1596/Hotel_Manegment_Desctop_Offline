@@ -158,6 +158,13 @@ const groups = [
   ],
 ];
 const links = groups.flatMap((g) => g[1]);
+const chartTip = {
+  background: "var(--surface)",
+  border: "1px solid var(--line-2)",
+  borderRadius: 8,
+  color: "var(--s-text, var(--text))",
+  fontSize: 12,
+};
 
 
 /* Daily work lives in the top bar (Tables / Kitchen / Bills). Everything else is tucked into "Manage". */
@@ -198,6 +205,18 @@ function ManageMenu({ nav, pathname }) {
       )}
     </div>
   );
+}
+
+/* Close a modal / popup with the Escape key */
+function useEscape(active, fn) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    if (!active) return;
+    const k = (e) => e.key === "Escape" && ref.current();
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [active]);
 }
 
 /* Promise based confirm / prompt dialogs (window.prompt is not supported in Electron). */
@@ -371,7 +390,7 @@ export default function App() {
     const orders = { ...sRef.current.orders };
     if (order.items?.length) orders[tableId] = order;
     else delete orders[tableId];
-    await save("orders", orders);
+    return save("orders", orders);
   };
   const finish = async (p) => {
     if (window.hotelApp) {
@@ -550,7 +569,7 @@ export default function App() {
             <Route path="/bills" element={<Bills s={s} query={query} setQuery={setQuery} nav={nav} notify={notify} />} />
             <Route
               path="/bills/:billId"
-              element={<BillDetail s={s} notify={notify} reload={reload} />}
+              element={<BillDetail s={s} nav={nav} notify={notify} reload={reload} />}
             />
             <Route path="/reports" element={<Reports s={s} />} />
             <Route path="/settings" element={<SettingsPage s={s} save={save} notify={notify} theme={theme} setTheme={setTheme} colors={colors} setColors={setColors} />} />
@@ -561,7 +580,7 @@ export default function App() {
       </main>
       <DialogHost />
       {toast && (
-        <div className={"toast " + toast.type} role="status">
+        <div className={"toast " + toast.type} role={toast.type === "error" ? "alert" : "status"}>
           {toast.type === "error" ? <AlertTriangle size={16} /> : <Check size={16} />}
           {toast.m}
           <button onClick={() => setToast(null)} aria-label="Dismiss">
@@ -757,15 +776,17 @@ function Dashboard({ s, nav }) {
                   dataKey="day"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 11, fill: "#858b97" }}
+                  tick={{ fontSize: 11, fill: "var(--muted)" }}
                 />
                 <Tooltip
+                  contentStyle={chartTip}
+                  cursor={{ fill: "var(--brand-soft)" }}
                   formatter={(v) => [
                     "₹" + Number(v).toLocaleString("en-IN"),
                     "Revenue",
                   ]}
                 />
-                <Bar dataKey="revenue" fill="#0f6b52" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" fill="var(--brand)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -1060,6 +1081,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
   const [pay, setPay] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  useEscape(pay && !busy, () => setPay(false));
   const dirty = useRef(false);
   const closing = useRef(false);
   const latest = useRef(order);
@@ -1068,7 +1090,13 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
   persistRef.current = persist;
   const change = (fn) => {
     dirty.current = true;
-    setOrder(fn);
+    setOrder((o) => {
+      const n = fn(o);
+      // an emptied order is gone from the kitchen too, so forget its KOT history
+      return n.items.length
+        ? n
+        : { ...n, kotSent: false, kotQty: undefined, kitchenStatus: undefined, kotSentAt: undefined };
+    });
   };
   useEffect(() => {
     if (!dirty.current || closing.current) return;
@@ -1092,7 +1120,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
       d.available !== false &&
       (cat === "All" || d.category === cat) &&
       (kind === "all" || (kind === "veg" ? d.type !== "non-veg" : d.type === "non-veg")) &&
-      d.name.toLowerCase().includes(q.toLowerCase()),
+      String(d.name || "").toLowerCase().includes(q.toLowerCase()),
   );
   const firstLetter = (d) => (d.name || "").trim().charAt(0).toUpperCase();
   const lettersWith = new Set(baseDishes.map(firstLetter));
@@ -1142,7 +1170,8 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
     setBusy(true);
     closing.current = true;
     try {
-      await persist(tableId, order); // make sure the saved order is what we bill
+      // make sure the saved order is what we bill
+      if ((await persist(tableId, order)) === false) throw Error("Could not save the order, so it was not billed");
       const b = await finish({
         tableId,
         paymentMethod: method,
@@ -1318,12 +1347,13 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
             </div>)}
             {dishes.map((d) => {
               const inCart = order.items.filter((x) => x.dishId === d.id).reduce((a, x) => a + x.quantity, 0);
-              const single = d.variants.length === 1;
+              const variants = d.variants || [];
+              const single = variants.length === 1;
               return (
                 <article className={"dish-card" + (inCart ? " in-cart" : "")} key={d.id}>
                   <button
                     className="dish-pic"
-                    onClick={() => single && add(d, d.variants[0])}
+                    onClick={() => single && add(d, variants[0])}
                     tabIndex={single ? 0 : -1}
                     aria-label={single ? "Add " + d.name : d.name}
                   >
@@ -1336,8 +1366,8 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
                     <small>{d.category}</small>
                   </div>
                   <div className={"variants" + (single ? " single" : "")}>
-                    {d.variants.map((v) => (
-                      <button key={v.name} onClick={() => add(d, v)} title={"Add " + d.name + " (" + v.name + ")"}>
+                    {variants.map((v, vi) => (
+                      <button key={v.name + "|" + vi} onClick={() => add(d, v)} title={"Add " + d.name + " (" + v.name + ")"}>
                         <span>{single ? "" : v.name}</span>
                         <b>{money(v.pricePaise)}</b>
                         <Plus size={14} />
@@ -1476,7 +1506,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
         </aside>
       </div>
       {pay && (
-        <div className="overlay">
+        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && setPay(false)}>
           <div className="modal">
             <div className="modal-head">
               <h3>Settle bill</h3>
@@ -1549,7 +1579,7 @@ function Menu({ s, save, notify }) {
     [edit, setEdit] = useState(null);
   const fresh = () => ({
     name: "",
-    category: s.categories[0] || "Starters",
+    category: s.categories[0] || "",
     type: "veg",
     available: true,
     variants: [{ name: "Full", price: "" }],
@@ -1561,7 +1591,7 @@ function Menu({ s, save, notify }) {
       d
         ? {
             ...d,
-            variants: d.variants.map((v) => ({
+            variants: (d.variants || []).map((v) => ({
               ...v,
               price: v.pricePaise / 100,
             })),
@@ -1570,31 +1600,40 @@ function Menu({ s, save, notify }) {
     );
     setModal(true);
   };
+  useEscape(modal, () => setModal(false));
   const submit = async () => {
     if (
       !form.name.trim() ||
       !form.variants.length ||
       form.variants.some(
-        (v) => !v.name || Number(v.price) < 0 || v.price === "",
+        (v) => !String(v.name || "").trim() || !Number.isFinite(Number(v.price)) || Number(v.price) < 0 || v.price === "",
       )
     )
-      return notify("Complete dish and variant fields");
+      return notify("Complete dish and variant fields", "error");
+    if (!form.category) return notify("Create a category first (Manage → Categories)", "error");
+    const names = form.variants.map((v) => v.name.trim().toLowerCase());
+    if (new Set(names).size !== names.length)
+      return notify("Each variant needs a different name", "error");
     const d = {
       ...form,
+      name: form.name.trim(),
       id: edit === "new" ? "dish-" + uid() : form.id,
       variants: form.variants.map((v) => ({
-        name: v.name,
+        name: v.name.trim(),
         pricePaise: paise(v.price),
       })),
     };
-    await save(
+    delete d.price;
+    const ok = await save(
       "dishes",
       edit === "new"
         ? [...s.dishes, d]
         : s.dishes.map((x) => (x.id === d.id ? d : x)),
     );
-    setModal(false);
-    notify("Dish saved");
+    if (ok) {
+      setModal(false);
+      notify("Dish saved");
+    }
   };
   return (
     <>
@@ -1629,7 +1668,7 @@ function Menu({ s, save, notify }) {
         />
         <Stat
           label="Variants"
-          value={s.dishes.reduce((a, d) => a + d.variants.length, 0)}
+          value={s.dishes.reduce((a, d) => a + (d.variants || []).length, 0)}
           note="Serving sizes and options"
           icon={BookOpen}
         />
@@ -1657,7 +1696,7 @@ function Menu({ s, save, notify }) {
             </thead>
             <tbody>
               {s.dishes
-                .filter((d) => d.name.toLowerCase().includes(q.toLowerCase()))
+                .filter((d) => String(d.name || "").toLowerCase().includes(q.toLowerCase()))
                 .map((d) => (
                   <tr key={d.id}>
                     <td>
@@ -1666,8 +1705,8 @@ function Menu({ s, save, notify }) {
                     <td>{d.category}</td>
                     <td>{d.type === "veg" ? "Veg" : "Non-veg"}</td>
                     <td>
-                      {d.variants.map((v) => (
-                        <div key={v.name}>
+                      {(d.variants || []).map((v, vi) => (
+                        <div key={v.name + "|" + vi}>
                           {v.name} <b>{money(v.pricePaise)}</b>
                         </div>
                       ))}
@@ -1718,17 +1757,17 @@ function Menu({ s, save, notify }) {
         </div>
       </Panel>
       {modal && (
-        <div className="overlay">
+        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setModal(false)}>
           <div className="modal">
             <div className="modal-head">
               <h3>{edit === "new" ? "Add dish" : "Edit dish"}</h3>
-              <button onClick={() => setModal(false)}>
+              <button onClick={() => setModal(false)} aria-label="Close">
                 <X />
               </button>
             </div>
             <div className="food-image-editor">
               <div className="food-image-preview">{form.imageDataUrl ? <img src={form.imageDataUrl} alt="Food preview" /> : <Image size={28} />}</div>
-              <div><b>Food photo</b><small>Choose a clear photo. It is saved with this dish on this computer.</small><label className="btn food-upload">{form.imageDataUrl ? "Change image" : "Upload food image"}<input type="file" accept="image/*" hidden onChange={async e => { const f=e.target.files?.[0]; e.target.value=""; if(!f)return; try { setForm({...form,imageDataUrl:await readLogo(f)}); } catch(err) { notify(errMsg(err),"error"); } }} /></label>{form.imageDataUrl && <button className="text-btn danger" onClick={()=>setForm({...form,imageDataUrl:""})}>Remove image</button>}</div>
+              <div><b>Food photo</b><small>Choose a clear photo. It is saved with this dish on this computer.</small><label className="btn food-upload">{form.imageDataUrl ? "Change image" : "Upload food image"}<input type="file" accept="image/*" hidden onChange={async e => { const f=e.target.files?.[0]; e.target.value=""; if(!f)return; try { setForm({...form,imageDataUrl:await readLogo(f, "photo")}); } catch(err) { notify(errMsg(err),"error"); } }} /></label>{form.imageDataUrl && <button className="text-btn danger" onClick={()=>setForm({...form,imageDataUrl:""})}>Remove image</button>}</div>
             </div>
             <label className="field-label">
               Dish name
@@ -1743,6 +1782,9 @@ function Menu({ s, save, notify }) {
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
               >
+                {!s.categories.includes(form.category) && form.category && (
+                  <option key={form.category}>{form.category}</option>
+                )}
                 {s.categories.map((c) => (
                   <option key={c}>{c}</option>
                 ))}
@@ -1788,6 +1830,8 @@ function Menu({ s, save, notify }) {
                   }
                 />
                 <button
+                  aria-label="Remove variant"
+                  title="Remove variant"
                   onClick={() =>
                     setForm({
                       ...form,
@@ -1837,9 +1881,11 @@ function Categories({ s, save, notify }) {
   const add = async () => {
     if (!name.trim()) return;
     if (s.categories.some((c) => c.toLowerCase() === name.trim().toLowerCase()))
-      return notify("Category already exists");
-    await save("categories", [...s.categories, name.trim()]);
-    setName("");
+      return notify("Category already exists", "error");
+    if (await save("categories", [...s.categories, name.trim()])) {
+      setName("");
+      notify("Category added");
+    }
   };
   return (
     <>
@@ -1883,6 +1929,7 @@ function Categories({ s, save, notify }) {
                   if (s.dishes.some((d) => d.category === c))
                     return notify(
                       "Move or delete dishes in this category first",
+                      "error",
                     );
                   if (
                     await ask({
@@ -2040,7 +2087,13 @@ function Bills({ s, query, setQuery, nav, notify }) {
             </thead>
             <tbody>
               {bills.map((b) => (
-                <tr key={b.id} className="click" onClick={() => nav("/bills/" + b.id)}>
+                <tr
+                  key={b.id}
+                  className="click"
+                  tabIndex={0}
+                  onClick={() => nav("/bills/" + b.id)}
+                  onKeyDown={(e) => e.key === "Enter" && nav("/bills/" + b.id)}
+                >
                   <td>
                     <b className="bill-link">{b.billNumber}</b>
                   </td>
@@ -2114,7 +2167,7 @@ td{padding:4px 0;vertical-align:top}td small{display:block;color:#666;font-size:
 .big{font-size:16px;border-top:2px solid #111;border-bottom:2px solid #111;padding:5px 0;margin:6px 0}
 .box{background:#f3f3f3;border-radius:4px;padding:6px 8px;margin-top:8px}.box .bt{font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}.box td,.box th{font-size:10px;padding:2px 0}
 </style></head><body>
-<div class="c">${s.hotel.logoDataUrl ? `<img class="logo" src="${s.hotel.logoDataUrl}">` : ""}<h2>${escHtml(s.hotel.name || "Hotel")}</h2>
+<div class="c">${s.hotel.logoDataUrl ? `<img class="logo" src="${escHtml(s.hotel.logoDataUrl)}">` : ""}<h2>${escHtml(s.hotel.name || "Hotel")}</h2>
 ${s.hotel.address ? `<p class="mut">${escHtml(s.hotel.address)}</p>` : ""}${s.hotel.phone ? `<p class="mut">${escHtml(s.hotel.phone)}</p>` : ""}${s.hotel.gstin ? `<p class="mut">GSTIN: ${escHtml(s.hotel.gstin)}</p>` : ""}
 <p class="inv">${taxLines.length ? "TAX INVOICE" : "BILL"}</p></div><hr>
 <div class="meta"><span>Bill no: <b>${escHtml(b.billNumber)}</b></span><span>Table: <b>${escHtml(b.tableName)}</b></span></div>
@@ -2130,7 +2183,7 @@ ${taxSummary}
 /* Prints silently on the printer chosen in Settings; falls back to the system dialog when none is chosen. */
 function kotHtml(s, tableId, order, table) {
   const rows = (order.items || []).map(i => `<div class="r"><b>${escHtml(i.quantity)} × ${escHtml(i.name)}</b><span>${escHtml(i.variant || "")}</span></div>`).join("");
-  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:0}body{font:14px Arial;width:72mm;margin:auto;padding:5mm 0;color:#111}.c{text-align:center}hr{border:0;border-top:1px dashed #333}.r{display:flex;justify-content:space-between;gap:8px;margin:12px 0}.note{font-size:12px}</style></head><body><div class="c"><h2>${escHtml(s.hotel.name || "HOTEL")}</h2><b>KITCHEN ORDER TICKET</b><h2>${escHtml(table || "Takeaway")}</h2><p>${escHtml(fmtDateTime(order.startedAt || new Date()))}</p></div><hr/>${rows}<hr/><p class="note">Order ID: ${escHtml(String(tableId).slice(-8).toUpperCase())}</p>${order.notes ? `<p><b>Note:</b> ${escHtml(order.notes)}</p>` : ""}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:0}body{font:14px Arial;width:${paperWidth[s.settings.receiptSize] || paperWidth["80mm"]};margin:auto;padding:5mm 0;color:#111}.c{text-align:center}hr{border:0;border-top:1px dashed #333}.r{display:flex;justify-content:space-between;gap:8px;margin:12px 0}.note{font-size:12px}</style></head><body><div class="c"><h2>${escHtml(s.hotel.name || "HOTEL")}</h2><b>KITCHEN ORDER TICKET</b><h2>${escHtml(table || "Takeaway")}</h2><p>${escHtml(fmtDateTime(order.kotSentAt || order.startedAt || new Date()))}</p></div><hr/>${rows}<hr/><p class="note">Order ID: ${escHtml(String(tableId).slice(-8).toUpperCase())}</p>${order.notes ? `<p><b>Note:</b> ${escHtml(order.notes)}</p>` : ""}</body></html>`;
 }
 async function printHtml(s, html, notify, role = "payment") {
   try {
@@ -2154,7 +2207,7 @@ async function printHtml(s, html, notify, role = "payment") {
     notify(errMsg(e), "error");
   }
 }
-function BillDetail({ s, notify, reload }) {
+function BillDetail({ s, notify, reload, nav }) {
   const { billId } = useParams();
   const [method, setMethod] = useState("Cash");
   const b = s.bills.find((x) => x.id === billId);
@@ -2177,9 +2230,12 @@ function BillDetail({ s, notify, reload }) {
         title={b.billNumber}
         desc={`Created ${fmtDateTime(b.createdAt)}`}
         action={
-          <Btn primary icon={Printer} onClick={() => printHtml(s, receiptHtml(s, b), notify, "payment")}>
-            Print receipt
-          </Btn>
+          <>
+            <Btn icon={ArrowLeft} onClick={() => nav("/bills")}>All bills</Btn>
+            <Btn primary icon={Printer} onClick={() => printHtml(s, receiptHtml(s, b), notify, "payment")}>
+              Print receipt
+            </Btn>
+          </>
         }
       />
       <div className="columns detail">
@@ -2208,7 +2264,7 @@ function BillDetail({ s, notify, reload }) {
           </div>
         </Panel>
         <Panel title="Receipt preview" desc="Exactly what is printed for the customer">
-          <iframe className="receipt-frame" title="Receipt preview" srcDoc={receiptHtml(s, b)} />
+          <iframe className="receipt-frame" title="Receipt preview" sandbox="" srcDoc={receiptHtml(s, b)} />
         </Panel>
         <Panel title="Transaction information">
           {[
@@ -2244,7 +2300,8 @@ function Reports({ s }) {
     }, {}),
   )
     .sort()
-    .map(([day, revenue]) => ({ day: day?.slice(5), revenue }));
+    .slice(-30)
+    .map(([day, revenue]) => ({ day: day === "unknown" ? "?" : day.slice(5), revenue }));
   return (
     <>
       <Heading
@@ -2278,15 +2335,15 @@ function Reports({ s }) {
           icon={CreditCard}
         />
       </div>
-      <Panel title="Revenue trend" desc="Daily collected revenue">
+      <Panel title="Revenue trend" desc="Daily collected revenue · last 30 days with sales">
         {days.length ? (
           <div className="chart tall">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={days}>
                 <CartesianGrid vertical={false} stroke="var(--line)" />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} />
-                <Tooltip formatter={(v) => "₹" + v} />
-                <Bar dataKey="revenue" fill="#0f6b52" radius={[4, 4, 0, 0]} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "var(--muted)" }} />
+                <Tooltip contentStyle={chartTip} cursor={{ fill: "var(--brand-soft)" }} formatter={(v) => "₹" + Number(v).toLocaleString("en-IN")} />
+                <Bar dataKey="revenue" fill="var(--brand)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -2404,7 +2461,7 @@ function ThemeSection({ theme, setTheme, colors, setColors, notify }) {
     </>
   );
 }
-const readLogo = (file) =>
+const readLogo = (file, kind = "logo") =>
   new Promise((resolve, reject) => {
     if (!file.type.startsWith("image/")) return reject(Error("Please choose an image file"));
     if (file.size > 8 * 1024 * 1024) return reject(Error("Image is too large (max 8 MB)"));
@@ -2416,9 +2473,14 @@ const readLogo = (file) =>
       const c = document.createElement("canvas");
       c.width = Math.max(1, Math.round(img.width * k));
       c.height = Math.max(1, Math.round(img.height * k));
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      const g = c.getContext("2d");
+      if (kind === "photo") {
+        g.fillStyle = "#fff";
+        g.fillRect(0, 0, c.width, c.height);
+      }
+      g.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      resolve(c.toDataURL("image/png"));
+      resolve(kind === "photo" ? c.toDataURL("image/jpeg", 0.82) : c.toDataURL("image/png"));
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -2441,6 +2503,7 @@ function SettingsPage({ s, save, notify, theme, setTheme, colors, setColors }) {
     setHotel(s.hotel);
     setSettings(s.settings);
   }, [s.hotel, s.settings]);
+  useEscape(!!files, () => setFiles(null));
   const tabs = [
     ["restaurant", "Hotel profile"],
     ["theme", "Theme & colors"],
@@ -2747,7 +2810,7 @@ function SettingsPage({ s, save, notify, theme, setTheme, colors, setColors }) {
         </Panel>
       </div>
       {files && (
-        <div className="overlay">
+        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setFiles(null)}>
           <div className="modal">
             <div className="modal-head">
               <h3>Delete old files</h3>

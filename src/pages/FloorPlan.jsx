@@ -50,15 +50,16 @@ export default function FloorPlan({ s, save, nav, notify }) {
   const addTable = async () => {
     const name = tableName.trim();
     if (!name) return notify("Enter a table name", "error");
-    if (tables.some((t) => t.name.toLowerCase() === name.toLowerCase()))
+    if (tables.some((t) => String(t.name || "").trim().toLowerCase() === name.toLowerCase()))
       return notify("Table already exists", "error");
+    const all = s.tables || [];
     const ok = await save("tables", [
-      ...s.tables,
+      ...all,
       {
-        id: `table-${crypto.randomUUID()}`,
+        id: `table-${crypto.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2)}`,
         name,
         enabled: true,
-        order: s.tables.length + 1,
+        order: all.length + 1,
         zone: newZone,
       },
     ]);
@@ -144,7 +145,7 @@ export default function FloorPlan({ s, save, nav, notify }) {
         <div className="floor-grid">
           {filter === "All" && zone === "All" && (
             <button
-              className={"floor-table takeaway" + (takeawayItems.length ? " running" : "")}
+              className={"floor-table takeaway" + (takeawayItems.length ? " " + (takeaway?.kotSent ? (takeaway.kitchenStatus === "Ready" ? "ready" : "kot") : "running") : "")}
               onClick={() => nav("/billing/takeaway")}
             >
               <div className="ft-top">
@@ -153,7 +154,10 @@ export default function FloorPlan({ s, save, nav, notify }) {
               </div>
               {takeawayItems.length ? (
                 <>
-                  <span className="ft-state running"><i className="dot running" /> Ordering</span>
+                  <span className={"ft-state " + (takeaway?.kotSent ? (takeaway.kitchenStatus === "Ready" ? "ready" : "kot") : "running")}>
+                    <i className={"dot " + (takeaway?.kotSent ? (takeaway.kitchenStatus === "Ready" ? "ready" : "kot") : "running")} />{" "}
+                    {takeaway?.kotSent ? (takeaway.kitchenStatus === "Ready" ? "Ready to serve" : "In kitchen") : "Ordering"}
+                  </span>
                   <b className="ft-amount">{rupees(takeawayAmount)}</b>
                   <small className="ft-meta">{takeawayItems.reduce((a, i) => a + i.quantity, 0)} items</small>
                 </>

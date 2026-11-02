@@ -3,28 +3,36 @@
 Windows desktop starter for restaurant table management, menu/variant editing, billing, reports, receipt printing, local JSON storage, and backup/restore. Built with React, Vite, Tailwind CSS, Recharts, Lucide, and Electron.
 
 ## Requirements
+
 - Windows 10/11
 - Node.js 20+
 
 ## Install and run
+
 ```bash
 npm install
 npm run dev
 ```
+
 The Vite preview is for UI development only and does not have local JSON persistence. For the Electron desktop application:
+
 ```bash
 npm run electron:dev
 ```
+
 On first launch, select a data folder. The app creates `settings`, `menu`, `tables`, `orders`, `bills`, `backups`, `exports`, and `assets` directories.
 
 ## Build a Windows installer
+
 ```bash
 npm run build
 npm run electron:build
 ```
+
 The installer is output to `release/`.
 
 ## Current storage structure
+
 ```text
 HotelData/
   settings/hotel.json
@@ -40,15 +48,18 @@ HotelData/
 ```
 
 ## Backup and restore
+
 Use **Settings → Backup & restore** to create or restore a JSON snapshot. Keep backups on a separate drive.
 
 ## Production readiness notes
+
 This is a functional project starter, not a certified accounting or GST product. Before using it for live financial operations, test all billing and tax paths with real business requirements. Remaining work includes per-business-date bill files, GST invoice/CGST/SGST/IGST treatment, refund/void workflows, robust storage migration/deletion, deeper schema validation, automated tests, printer discovery/selection, and a fully offline bundled font/CSP setup. The current storage implementation stores bills in `bills/all-bills.json`. No authentication is included; anyone with access to the Windows desktop session can access management screens.
 
 ## v1.1 notes
+
 - No File/Edit/View/Window/Help menu bar; the app uses the hotel icon (`build/hotel.png`, `build/hotel.ico`).
 - The data folder is chosen once and remembered (`workspace.json` in the app's user-data folder).
-- Settings → Receipt & printer: pick the connected printer; every *Print receipt* click then prints silently to it.
+- Settings → Receipt & printer: pick the connected printer; every _Print receipt_ click then prints silently to it.
 - Settings → Tax & billing: add as many taxes as needed (CGST, SGST, cess…), each with its own rate and on/off switch.
 - Settings → Hotel profile: upload a logo; it appears in the sidebar and on every printed bill.
 

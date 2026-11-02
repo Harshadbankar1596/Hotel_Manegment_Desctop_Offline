@@ -1,4 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  shell,
+  Menu,
+} = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -195,8 +202,13 @@ async function readBillFiles() {
   }
   return out.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 }
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const dayOf = (bill) =>
+  DAY_RE.test(String(bill?.businessDate || "")) ? bill.businessDate : dateKey();
 async function appendDailyBill(bill) {
-  const key = bill.businessDate || dateKey();
+  if (!bill || typeof bill.id !== "string" || !bill.id)
+    throw Error("Invalid bill: missing id");
+  const key = dayOf(bill);
   const target = path.join(root, "bills", key + ".json");
   const existing = await readJson(target, []);
   const list = Array.isArray(existing) ? existing : existing.bills || [];
@@ -205,10 +217,17 @@ async function appendDailyBill(bill) {
   await writeAtomic(target, list);
 }
 async function removeDailyBill(bill) {
-  const target = path.join(root, "bills", (bill.businessDate || dateKey()) + ".json");
+  const target = path.join(
+    root,
+    "bills",
+    dayOf(bill) + ".json",
+  );
   const existing = await readJson(target, []);
   const list = Array.isArray(existing) ? existing : existing.bills || [];
-  await writeAtomic(target, list.filter((b) => b.id !== bill.id));
+  await writeAtomic(
+    target,
+    list.filter((b) => b.id !== bill.id),
+  );
 }
 async function load() {
   const data = {};
@@ -329,7 +348,8 @@ function createWindow() {
   win.once("ready-to-show", () => win.show());
   // F11 toggles full screen (the menu bar is removed, so handle it here); Esc leaves it
   const sendFs = () => {
-    if (!win.isDestroyed()) win.webContents.send("window:fullscreen-changed", win.isFullScreen());
+    if (!win.isDestroyed())
+      win.webContents.send("window:fullscreen-changed", win.isFullScreen());
   };
   win.on("enter-full-screen", sendFs);
   win.on("leave-full-screen", sendFs);
@@ -338,14 +358,25 @@ function createWindow() {
     if (input.key === "F11") {
       e.preventDefault();
       win.setFullScreen(!win.isFullScreen());
-    } else if (input.key === "Escape" && win.isFullScreen()) {
-      e.preventDefault();
-      win.setFullScreen(false);
     }
+    // Esc is intentionally NOT handled here: the app uses it to close dialogs and menus.
+    // Use F11 or the full-screen button to leave full screen.
   });
   win.on("page-title-updated", (e) => e.preventDefault());
+  // Dropping a file on the window (or a stray link) must never replace the app itself.
+  win.webContents.on("will-navigate", (e, url) => {
+    const start = process.env.ELECTRON_START_URL;
+    const appUrl = require("node:url").pathToFileURL(
+      path.join(__dirname, "../dist/index.html"),
+    ).href;
+    const same = start ? url.startsWith(start) : url.split("#")[0] === appUrl;
+    if (!same) e.preventDefault();
+  });
   win.webContents.on("render-process-gone", (_e, d) =>
-    dialog.showErrorBox("Optimize", "The window crashed (" + d.reason + "). Please reopen the app."),
+    dialog.showErrorBox(
+      "Optimize",
+      "The window crashed (" + d.reason + "). Please reopen the app.",
+    ),
   );
   if (process.env.ELECTRON_START_URL)
     win.loadURL(process.env.ELECTRON_START_URL);
@@ -357,7 +388,11 @@ function createWindow() {
 }
 process.on("uncaughtException", (e) => console.error("Uncaught:", e));
 process.on("unhandledRejection", (e) => console.error("Unhandled:", e));
-if (app.requestSingleInstanceLock && !app.requestSingleInstanceLock()) app.quit();
+const gotLock = app.requestSingleInstanceLock ? app.requestSingleInstanceLock() : true;
+if (!gotLock) {
+  app.quit();
+  process.exit(0);
+}
 app.on("second-instance", () => {
   if (win) {
     if (win.isMinimized()) win.restore();
@@ -462,10 +497,15 @@ app.whenReady().then(() => {
         orderType: p.tableId === "takeaway" ? "Takeaway" : "Dine-in",
         notes: typeof order.notes === "string" ? order.notes.slice(0, 500) : "",
         ...totals,
-        paymentMethod: ["Cash", "UPI", "Card", "Other"].includes(p.paymentMethod)
+        paymentMethod: ["Cash", "UPI", "Card", "Other"].includes(
+          p.paymentMethod,
+        )
           ? p.paymentMethod
           : "Cash",
-        cashReceivedPaise: Math.max(0, Math.round(Number(p.cashReceivedPaise) || 0)),
+        cashReceivedPaise: Math.max(
+          0,
+          Math.round(Number(p.cashReceivedPaise) || 0),
+        ),
         status: p.status === "Pending" ? "Pending" : "Paid",
         createdAt: now.toISOString(),
         businessDate: dateKey(now),
@@ -522,7 +562,9 @@ app.whenReady().then(() => {
       const known = await win.webContents.getPrintersAsync();
       if (!known.some((p) => p.name === name))
         throw Error(
-          'Printer "' + name + '" is not available. Check that it is switched on and connected, or choose another printer in Settings.',
+          'Printer "' +
+            name +
+            '" is not available. Check that it is switched on and connected, or choose another printer in Settings.',
         );
     }
     const size = opts?.size;
@@ -539,7 +581,9 @@ app.whenReady().then(() => {
       },
     });
     try {
-      await w.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
+      await w.loadURL(
+        "data:text/html;charset=utf-8," + encodeURIComponent(html),
+      );
     } catch (e) {
       w.close();
       throw Error("Could not prepare the receipt: " + e.message);
@@ -570,7 +614,7 @@ app.whenReady().then(() => {
       if (!bill) throw Error("Bill not found");
       if (bill.status !== "Pending") throw Error("This bill is not pending");
       const dir = path.join(root, "bills");
-      const target = path.join(dir, (bill.businessDate || dateKey()) + ".json");
+      const target = path.join(dir, dayOf(bill) + ".json");
       const v = await readJson(target, []);
       const list = Array.isArray(v) ? v : v.bills || [];
       const i = list.findIndex((b) => b.id === id);
@@ -578,7 +622,9 @@ app.whenReady().then(() => {
       list[i] = {
         ...list[i],
         status: "Paid",
-        paymentMethod: ["Cash", "UPI", "Card", "Other"].includes(method) ? method : list[i].paymentMethod,
+        paymentMethod: ["Cash", "UPI", "Card", "Other"].includes(method)
+          ? method
+          : list[i].paymentMethod,
         paidAt: new Date().toISOString(),
       };
       await writeAtomic(target, list);
@@ -614,22 +660,32 @@ app.whenReady().then(() => {
       throw Error("This is not a valid backup file");
     for (const k of Object.keys(sections))
       if (!(k in b.state)) throw Error("Invalid backup: missing " + k);
-    if (!Array.isArray(b.state.bills)) throw Error("Invalid backup: bills");
-    for (const k of Object.keys(sections)) {
-      if (k === "bills") {
-        for (const n of await fs.readdir(path.join(root, "bills")))
-          if (/^\d{4}-\d{2}-\d{2}\.json$/.test(n))
-            await fs.unlink(path.join(root, "bills", n));
-        for (const bill of b.state.bills) await appendDailyBill(bill);
-      } else await writeAtomic(file(k), b.state[k]);
-    }
-    return load();
+    const st = b.state;
+    const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
+    if (!Array.isArray(st.bills)) throw Error("Invalid backup: bills");
+    if (!st.bills.every((x) => isObj(x) && typeof x.id === "string" && x.id))
+      throw Error("Invalid backup: a bill has no id");
+    for (const k of ["categories", "dishes", "tables"])
+      if (!Array.isArray(st[k])) throw Error("Invalid backup: " + k);
+    for (const k of ["hotel", "settings", "orders"])
+      if (!isObj(st[k])) throw Error("Invalid backup: " + k);
+    return serialized(async () => {
+      for (const k of Object.keys(sections)) {
+        if (k === "bills") {
+          for (const n of await fs.readdir(path.join(root, "bills")))
+            if (/^\d{4}-\d{2}-\d{2}\.json$/.test(n))
+              await fs.unlink(path.join(root, "bills", n));
+          for (const bill of st.bills) await appendDailyBill(bill);
+        } else await writeAtomic(file(k), st[k]);
+      }
+      return load();
+    });
   });
   ipcMain.handle("storage:list-files", async () => {
     const out = [];
     async function walk(dir, rel = "") {
       for (const e of await fs.readdir(dir, { withFileTypes: true })) {
-        const r = path.join(rel, e.name);
+        const r = path.posix.join(rel.split(path.sep).join("/"), e.name);
         const full = path.join(dir, e.name);
         if (e.isDirectory()) await walk(full, r);
         else {
@@ -639,10 +695,10 @@ app.whenReady().then(() => {
             sizeBytes: st.size,
             modifiedAt: st.mtime.toISOString(),
             protected:
-              r.startsWith("orders" + path.sep) ||
-              r.startsWith("settings" + path.sep) ||
-              r.startsWith("menu" + path.sep) ||
-              r.startsWith("tables" + path.sep) ||
+              r.startsWith("orders/") ||
+              r.startsWith("settings/") ||
+              r.startsWith("menu/") ||
+              r.startsWith("tables/") ||
               r === "bills/" + dateKey() + ".json",
           });
         }
@@ -659,27 +715,25 @@ app.whenReady().then(() => {
         paths.some((x) => typeof x !== "string")
       )
         throw Error("Select files to delete");
-      const current = await fs.readdir(path.join(root, "bills"));
-      const protectedPaths = new Set([
-        "settings/hotel.json",
-        "settings/app-settings.json",
-        "menu/dishes.json",
-        "menu/categories.json",
-        "tables/tables.json",
-        "orders/active-orders.json",
-        `bills/${dateKey()}.json`,
-      ]);
+      const protectedPaths = new Set(
+        [
+          "settings/hotel.json",
+          "settings/app-settings.json",
+          "menu/dishes.json",
+          "menu/categories.json",
+          "tables/tables.json",
+          "orders/active-orders.json",
+          `bills/${dateKey()}.json`,
+        ].map((x) => path.resolve(root, x)),
+      );
+      const targets = [];
       for (const rel of paths) {
-        const normalized = rel.replaceAll("\\", "/");
-        if (
-          protectedPaths.has(normalized) ||
-          normalized.split("/").some((x) => x === "..")
-        )
-          throw Error("One or more selected files are protected");
         const full = path.resolve(root, rel);
         if (!full.startsWith(root + path.sep)) throw Error("Invalid file path");
-        await fs.unlink(full);
+        if (protectedPaths.has(full)) throw Error("One or more selected files are protected");
+        targets.push(full);
       }
+      for (const full of targets) await fs.unlink(full);
       return { success: true };
     }),
   );

@@ -1330,7 +1330,7 @@ tr.click:hover td {
 .dish-grid.fade {
   animation: dishesIn 0.16s ease-out;
 }
-@media (min-width: 1001px) {
+@media (min-width: 900px) {
   .billing {
     height: var(--bill-h, calc(100vh - 200px));
     grid-template-rows: minmax(0, 1fr);
@@ -1365,7 +1365,7 @@ tr.click:hover td {
     max-height: none;
   }
 }
-@media (max-width: 1000px) {
+@media (max-width: 899px) {
   .az-rail {
     height: 60vh;
     position: sticky;
@@ -2426,9 +2426,13 @@ tr.click:hover td {
 
 /* ---------- Feedback ---------- */
 .toast {
+  /* top-centre, under the bar: never covers the order panel's Send / Bill buttons */
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  top: 74px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: max-content;
   z-index: 80;
   display: flex;
   align-items: center;
@@ -2439,7 +2443,7 @@ tr.click:hover td {
   color: #fff;
   box-shadow: var(--shadow-lg);
   font-weight: 500;
-  max-width: 440px;
+  max-width: min(440px, calc(100vw - 32px));
   animation: pop 0.18s ease-out;
 }
 .toast svg {
@@ -2462,7 +2466,7 @@ tr.click:hover td {
 }
 @keyframes pop {
   from {
-    transform: translateY(8px);
+    transform: translateY(-8px);
     opacity: 0;
   }
 }
@@ -2630,13 +2634,6 @@ tr.click:hover td {
   .settings-layout {
     grid-template-columns: 1fr;
   }
-  .billing {
-    grid-template-columns: 1fr;
-  }
-  .cart {
-    position: static;
-    max-height: none;
-  }
   .setup {
     grid-template-columns: 1fr;
   }
@@ -2645,6 +2642,16 @@ tr.click:hover td {
   }
   .toolbar {
     grid-template-columns: 1fr 1fr;
+  }
+}
+/* Stack the order panel under the menu only on genuinely narrow windows (the app's minimum is 980px) */
+@media (max-width: 899px) {
+  .billing {
+    grid-template-columns: 1fr;
+  }
+  .cart {
+    position: static;
+    max-height: none;
   }
 }
 @media print {

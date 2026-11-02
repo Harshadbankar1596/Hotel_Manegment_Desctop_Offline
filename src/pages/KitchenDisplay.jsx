@@ -13,7 +13,7 @@ export default function KitchenDisplay({ s, save, nav, notify, printKOT }) {
         .map(([tableId, order]) => ({
           tableId,
           order,
-          table: s.tables.find((t) => t.id === tableId)?.name || (tableId === "takeaway" ? "Takeaway" : "Table"),
+          table: (s.tables || []).find((t) => t.id === tableId)?.name || (tableId === "takeaway" ? "Takeaway" : "Table"),
         }))
         .filter((t) => `${t.table} ${t.order.items.map((i) => i.name).join(" ")}`.toLowerCase().includes(query.toLowerCase()))
         .sort((a, b) => String(a.order.kotSentAt || a.order.startedAt).localeCompare(String(b.order.kotSentAt || b.order.startedAt))),
