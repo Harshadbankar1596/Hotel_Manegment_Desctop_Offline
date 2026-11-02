@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Navigate,
   NavLink,
@@ -13,10 +13,11 @@ import {
   Archive,
   ArrowLeft,
   BarChart3,
-  Bell,
   BookOpen,
   Check,
   ChevronDown,
+  ChevronUp,
+  Pencil,
   Clock3,
   CreditCard,
   Download,
@@ -29,7 +30,6 @@ import {
   RefreshCw,
   Search,
   Settings,
-  ShieldCheck,
   Table2,
   Tags,
   Trash2,
@@ -43,9 +43,7 @@ import {
   Sun,
   Image,
   Banknote,
-  Pencil,
   Smartphone,
-  ShoppingBag,
   AlertTriangle,
   LayoutGrid,
   Send,
@@ -56,6 +54,7 @@ import {
 import FloorPlan from "./pages/FloorPlan.jsx";
 import KitchenDisplay from "./pages/KitchenDisplay.jsx";
 import FoodThumb from "./components/FoodThumb.jsx";
+import { sentItems } from "./kot.js";
 import { DEFAULT_COLORS, PRESETS, applyTheme, buildPalette, isHex, sameColors, sanitize } from "./theme.js";
 import {
   Bar,
@@ -127,37 +126,35 @@ const elapsed = (v) => {
   const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
   return m < 60 ? m + " min" : Math.floor(m / 60) + "h " + (m % 60) + "m";
 };
+/* Takeaway orders: legacy id "takeaway" plus one id per customer ("takeaway-<uuid>") */
+/* Split a total tax over tax rules so the parts always add up to the total (largest remainder). Same as electron/main.cjs */
+function splitTax(totalPaise, rules) {
+  const rates = rules.map((t) => Math.max(0, Number(t.rate) || 0));
+  const sum = rates.reduce((a, b) => a + b, 0);
+  if (!rules.length || !sum || !totalPaise) return rules.map(() => 0);
+  const exact = rates.map((r) => (totalPaise * r) / sum);
+  const parts = exact.map(Math.floor);
+  let left = totalPaise - parts.reduce((a, b) => a + b, 0);
+  exact
+    .map((e, i) => [e - Math.floor(e), i])
+    .sort((a, b) => b[0] - a[0] || a[1] - b[1])
+    .forEach(([, i]) => {
+      if (left > 0) {
+        parts[i]++;
+        left--;
+      }
+    });
+  return parts;
+}
+const isTakeawayId = (id) => id === "takeaway" || String(id).startsWith("takeaway-");
+/* The day money was actually collected: a pending bill settled later counts on the day it was paid */
+const collectDay = (b) => (b.status === "Paid" && b.paidBusinessDate) || billDay(b);
 const csvCell = (v) => {
-  const t = String(v ?? "");
-  return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  let t = String(v ?? "");
+  // spreadsheet formula injection: text starting with = + - @ (or tab / CR) would run as a formula in Excel
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(t)) t = "'" + t;
+  return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
 };
-const groups = [
-  [
-    "OPERATIONS",
-    [
-      ["/dashboard", "Dashboard", LayoutDashboard],
-      ["/tables", "Tables", Table2],
-      ["/kitchen", "Kitchen / KOT", ChefHat],
-      ["/bills", "Bills", Receipt],
-    ],
-  ],
-  [
-    "MANAGE",
-    [
-      ["/menu", "Menu & Dishes", Utensils],
-      ["/categories", "Categories", Tags],
-      ["/reports", "Reports", BarChart3],
-    ],
-  ],
-  [
-    "SYSTEM",
-    [
-      ["/settings", "Settings", Settings],
-      ["/settings/backup", "Data & Backups", Archive],
-    ],
-  ],
-];
-const links = groups.flatMap((g) => g[1]);
 const chartTip = {
   background: "var(--surface)",
   border: "1px solid var(--line-2)",
@@ -288,6 +285,9 @@ export default function App() {
   const [s, setS] = useState(empty),
     [ready, setReady] = useState(false),
     [toast, setToast] = useState(null),
+    [loadError, setLoadError] = useState(null),
+    [setup, setSetup] = useState({ name: "", gstin: "", tax: false, rate: "5" }),
+    [retrying, setRetrying] = useState(false),
     [now, setNow] = useState(() => new Date()),
     [query, setQuery] = useState(""),
     [theme, setTheme] = useState(
@@ -315,9 +315,12 @@ export default function App() {
     try {
       const d = await window.hotelApp?.load();
       if (d) setS(d);
+      setLoadError(null);
       if (manual === true) notify("Data refreshed");
     } catch (e) {
-      notify(errMsg(e), "error");
+      // Nothing is loaded yet: show a persistent error screen instead of a "first-time setup" screen
+      if (!sRef.current.dataDirectory) setLoadError(errMsg(e));
+      else notify(errMsg(e), "error");
     }
     setReady(true);
   };
@@ -376,8 +379,23 @@ export default function App() {
   };
   const choose = async () => {
     try {
-      const d = await window.hotelApp?.chooseFolder();
+      let d = await window.hotelApp?.chooseFolder();
       if (d) {
+        // Brand-new folder (no hotel name yet): store what was typed on the setup screen
+        const name = setup.name.trim();
+        if (name && !String(d.hotel?.name || "").trim()) {
+          const rate = Math.max(0, Math.min(100, Number(setup.rate) || 0));
+          const hotel = { ...d.hotel, name, gstin: setup.gstin.trim().toUpperCase() };
+          const settings = setup.tax && rate > 0 ? { ...d.settings, taxEnabled: true, taxRate: rate } : d.settings;
+          try {
+            await window.hotelApp.save("hotel", hotel);
+            if (settings !== d.settings) await window.hotelApp.save("settings", settings);
+            d = { ...d, hotel, settings };
+          } catch (e) {
+            notify("Folder connected, but could not save hotel details: " + errMsg(e), "error");
+          }
+        }
+        setLoadError(null);
         setS(d);
         setReady(true);
         notify("Data folder connected");
@@ -401,6 +419,7 @@ export default function App() {
     }
     const o = s.orders[p.tableId];
     if (!o?.items?.length) throw Error("Add at least one item");
+    const tName = s.tables.find((t) => t.id === p.tableId)?.name || o.label || "Takeaway";
     const subtotalPaise = o.items.reduce(
         (a, i) => a + i.unitPricePaise * i.quantity,
         0,
@@ -415,7 +434,11 @@ export default function App() {
           (s.settings.billPrefix || "BILL-") +
           String(s.settings.nextBillNumber).padStart(4, "0"),
         tableId: p.tableId,
-        tableName: s.tables.find((t) => t.id === p.tableId)?.name || "Takeaway",
+        tableName: tName,
+        orderType: isTakeawayId(p.tableId) ? "Takeaway" : "Dine-in",
+        customerName: p.customerName || "",
+        customerPhone: p.customerPhone || "",
+        cancelledItems: o.cancelled || [],
         items: o.items.map((i) => ({
           ...i,
           lineTotalPaise: i.unitPricePaise * i.quantity,
@@ -424,7 +447,7 @@ export default function App() {
         discountPaise,
         taxPaise,
         grandTotalPaise: net + taxPaise,
-        paymentMethod: p.paymentMethod,
+        paymentMethod: p.status === "Pending" ? null : p.paymentMethod,
         status: p.status || "Paid",
         createdAt: new Date().toISOString(),
         businessDate: new Date().toLocaleDateString("en-CA"),
@@ -444,15 +467,41 @@ export default function App() {
         Preparing workspace…
       </div>
     );
+  if (loadError && !s.dataDirectory)
+    return (
+      <div className="loading load-error" role="alert">
+        <AlertTriangle size={34} />
+        <h2>Could not open your data</h2>
+        <p className="load-error-msg">{loadError}</p>
+        <p className="subtle">
+          Your data has NOT been deleted. A file may be damaged (for example after a power cut). Click Retry, or restore
+          that file from a backup copy. Do not start a new workspace in the same folder.
+        </p>
+        <div className="load-error-actions">
+          <button
+            className="primary"
+            disabled={retrying}
+            onClick={async () => {
+              setRetrying(true);
+              await reload();
+              setRetrying(false);
+            }}
+          >
+            <RefreshCw size={16} /> {retrying ? "Retrying…" : "Retry"}
+          </button>
+          <button className="btn" onClick={choose}>
+            <FolderOpen size={16} /> Choose another folder
+          </button>
+        </div>
+      </div>
+    );
   if (window.hotelApp && !s.dataDirectory)
     return (
       <div className="setup">
         <div className="setup-card">
           <div className="logo">
             <Hotel />{" "}
-            <b>
-              Grand<span>Stay</span>
-            </b>
+            <b>Optimize</b>
           </div>
           <small>FIRST-TIME SETUP</small>
           <h1>
@@ -475,6 +524,45 @@ export default function App() {
             <p>
               <Check /> Billing, receipts and reports
             </p>
+          </div>
+          <div className="setup-form">
+            <label className="field-label">
+              Hotel / restaurant name
+              <input
+                value={setup.name}
+                maxLength={80}
+                placeholder="e.g. Hotel Sunrise"
+                onChange={(e) => setSetup({ ...setup, name: e.target.value })}
+              />
+            </label>
+            <label className="field-label">
+              GSTIN (optional)
+              <input
+                value={setup.gstin}
+                maxLength={15}
+                placeholder="15-character GSTIN"
+                onChange={(e) => setSetup({ ...setup, gstin: e.target.value })}
+              />
+            </label>
+            <label className="setup-check">
+              <input type="checkbox" checked={setup.tax} onChange={(e) => setSetup({ ...setup, tax: e.target.checked })} />
+              Charge GST on bills
+              {setup.tax && (
+                <>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={setup.rate}
+                    onChange={(e) => setSetup({ ...setup, rate: e.target.value })}
+                    aria-label="GST rate percent"
+                  />
+                  %
+                </>
+              )}
+            </label>
+            <small className="subtle">You can change all of this later in Settings.</small>
           </div>
           <button className="primary wide" onClick={choose}>
             <FolderOpen size={17} /> Choose data folder →
@@ -558,11 +646,11 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/tables" replace />} />
             <Route path="/dashboard" element={<Dashboard s={s} nav={nav} />} />
-            <Route path="/tables" element={<FloorPlan s={s} save={save} nav={nav} notify={notify} />} />
-            <Route path="/kitchen" element={<KitchenDisplay s={s} save={save} nav={nav} notify={notify} printKOT={(tableId, order, table) => printHtml(s, kotHtml(s, tableId, order, table), notify, "kitchen")} />} />
+            <Route path="/tables" element={<FloorPlan s={s} save={save} nav={nav} notify={notify} ask={ask} />} />
+            <Route path="/kitchen" element={<KitchenDisplay s={s} save={save} nav={nav} notify={notify} printKOT={(tableId, order, table, mode) => printHtml(s, kotHtml(s, tableId, order, table, mode), notify, "kitchen")} />} />
             <Route
               path="/billing/:tableId"
-              element={<BillingRoute s={s} persist={persistOrder} finish={finish} nav={nav} notify={notify} printKOT={(tableId, order, table) => printHtml(s, kotHtml(s, tableId, order, table), notify, "kitchen")} />}
+              element={<BillingRoute s={s} persist={persistOrder} finish={finish} nav={nav} notify={notify} printKOT={(tableId, order, table, mode) => printHtml(s, kotHtml(s, tableId, order, table, mode), notify, "kitchen")} />}
             />
             <Route path="/menu" element={<Menu s={s} save={save} notify={notify} />} />
             <Route path="/categories" element={<Categories s={s} save={save} notify={notify} />} />
@@ -663,10 +751,13 @@ function Dashboard({ s, nav }) {
       !["Cancelled", "Voided", "Refunded"].includes(b.status),
   );
   const revenue = bills.reduce((a, b) => a + b.grandTotalPaise, 0);
+  const collectedToday = s.bills
+    .filter((b) => b.status === "Paid" && collectDay(b) === today)
+    .reduce((a, b) => a + b.grandTotalPaise, 0);
   const month = s.bills
     .filter(
       (b) =>
-        billDay(b).slice(0, 7) === today.slice(0, 7) &&
+        collectDay(b).slice(0, 7) === today.slice(0, 7) &&
         b.status === "Paid",
     )
     .reduce((a, b) => a + b.grandTotalPaise, 0);
@@ -677,7 +768,7 @@ function Dashboard({ s, nav }) {
     return {
       day: d.toLocaleDateString("en-IN", { weekday: "short" }),
       revenue: s.bills
-        .filter((b) => billDay(b) === key && b.status === "Paid")
+        .filter((b) => collectDay(b) === key && b.status === "Paid")
         .reduce((a, b) => a + b.grandTotalPaise / 100, 0),
     };
   });
@@ -728,7 +819,7 @@ function Dashboard({ s, nav }) {
         <Stat
           label="Today's sales"
           value={money(revenue)}
-          note={`${bills.length} bill${bills.length === 1 ? "" : "s"} generated today`}
+          note={`${bills.length} bill${bills.length === 1 ? "" : "s"} today · ${money(collectedToday)} collected`}
           icon={Wallet}
         />
         <Stat
@@ -881,162 +972,20 @@ function Dashboard({ s, nav }) {
     </>
   );
 }
-function Tables({ s, save, nav, notify }) {
-  const [filter, setFilter] = useState("All");
-  const [name, setName] = useState("");
-  const [adding, setAdding] = useState(false);
-  const tables = s.tables.filter((t) => t.enabled !== false);
-  const status = (t) =>
-    s.orders[t.id]?.items?.length ? "Occupied" : "Available";
-  const takeaway = s.orders.takeaway;
-  const nameTaken = (n, exceptId) =>
-    s.tables.some(
-      (t) =>
-        t.id !== exceptId &&
-        t.enabled !== false &&
-        t.name.trim().toLowerCase() === n.trim().toLowerCase(),
-    );
-  const add = async () => {
-    const n = name.trim();
-    if (!n) return notify("Enter a table name", "error");
-    if (nameTaken(n)) return notify("A table named “" + n + "” already exists", "error");
-    const ok = await save("tables", [
-      ...s.tables,
-      { id: "table-" + uid(), name: n, enabled: true, order: s.tables.length + 1 },
-    ]);
-    if (ok) {
-      notify("Table added");
-      setName("");
-      setAdding(false);
-    }
-  };
-  const rename = async (t) => {
-    const n = await ask({
-      title: "Rename table",
-      input: { label: "Table name", value: t.name },
-      confirmLabel: "Save name",
-    });
-    if (n == null || n === t.name) return;
-    if (nameTaken(n, t.id)) return notify("A table named “" + n + "” already exists", "error");
-    if (await save("tables", s.tables.map((x) => (x.id === t.id ? { ...x, name: n } : x))))
-      notify("Table renamed");
-  };
-  const remove = async (t) => {
-    const busy = s.orders[t.id]?.items?.length;
-    if (busy)
-      return notify(
-        t.name + " has an open order. Settle or clear the order before deleting the table.",
-        "error",
-      );
-    const yes = await ask({
-      title: "Delete " + t.name + "?",
-      message: "The table will be removed from your floor. Past bills keep their table name.",
-      confirmLabel: "Delete table",
-      danger: true,
-    });
-    if (!yes) return;
-    if (await save("tables", s.tables.filter((x) => x.id !== t.id))) notify("Table deleted");
-  };
-  return (
-    <>
-      <Heading
-        eyebrow="OPERATIONS"
-        title="Tables & orders"
-        desc="Keep every table moving, from the first order to the final bill."
-        action={
-          <>
-            <Btn icon={ShoppingBag} onClick={() => nav("/billing/takeaway")}>
-              {takeaway?.items?.length ? "Continue takeaway" : "New takeaway"}
-            </Btn>
-            <Btn primary icon={Plus} onClick={() => setAdding(!adding)}>
-              Add table
-            </Btn>
-          </>
-        }
-      />
-      {adding && (
-        <div className="panel add-row">
-          <input
-            autoFocus
-            placeholder="Table name e.g. Patio 1"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && add()}
-          />
-          <Btn primary onClick={add}>
-            Save table
-          </Btn>
-          <Btn onClick={() => setAdding(false)}>Cancel</Btn>
-        </div>
-      )}
-      <div className="tabs">
-        {["All", "Available", "Occupied"].map((x) => (
-          <button key={x} className={filter === x ? "selected" : ""} onClick={() => setFilter(x)}>
-            {x}{" "}
-            <span>
-              {x === "All" ? tables.length : tables.filter((t) => status(t) === x).length}
-            </span>
-          </button>
-        ))}
-        <div className="legend">
-          <span><i /> Available</span>
-          <span><i className="o" /> Occupied</span>
-        </div>
-      </div>
-      {!tables.length && (
-        <Empty title="No tables yet" desc="Use “Add table” to create your first table." />
-      )}
-      <div className="table-grid">
-        {tables
-          .filter((t) => filter === "All" || status(t) === filter)
-          .map((t) => {
-            const o = s.orders[t.id];
-            const amount = (o?.items || []).reduce((a, i) => a + i.unitPricePaise * i.quantity, 0);
-            const busy = !!o?.items?.length;
-            return (
-              <div className={"table-card " + status(t).toLowerCase()} key={t.id}>
-                <div className="table-card-top">
-                  <Table2 size={19} />
-                  <span className={"status " + status(t).toLowerCase()}>{status(t)}</span>
-                </div>
-                <h3>{t.name}</h3>
-                {busy ? (
-                  <>
-                    <p>
-                      {o.items.reduce((a, i) => a + i.quantity, 0)} items · Started {fmtTime(o.startedAt)}
-                      {elapsed(o.startedAt) ? " · " + elapsed(o.startedAt) : ""}
-                    </p>
-                    <strong className="table-total">{money(amount)}</strong>
-                  </>
-                ) : (
-                  <p>Ready for your next guests</p>
-                )}
-                <Btn primary={busy} icon={busy ? Receipt : Plus} onClick={() => nav("/billing/" + t.id)}>
-                  {busy ? "Continue order" : "Start order"} →
-                </Btn>
-                <div className="table-tools">
-                  <button onClick={() => rename(t)}>
-                    <Pencil size={13} /> Rename
-                  </button>
-                  <button className="del" onClick={() => remove(t)}>
-                    <Trash2 size={13} /> Delete
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-      </div>
-    </>
-  );
-}
 function BillingRoute(props) {
   const { tableId } = useParams();
   return <Billing key={tableId} tableId={tableId} {...props} />;
 }
 function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
   const table = s.tables.find((t) => t.id === tableId);
-  const isTakeaway = tableId === "takeaway";
-  const fresh = () => ({ items: [], notes: "", startedAt: new Date().toISOString() });
+  const isTakeaway = isTakeawayId(tableId);
+  const fresh = () => {
+    const base = { items: [], notes: "", startedAt: new Date().toISOString() };
+    if (!isTakeaway || tableId === "takeaway") return base;
+    // numbering: one more than the highest takeaway label currently open
+    const used = Object.values(s.orders || {}).map((o) => Number(String(o?.label || "").replace(/\D/g, "")) || 0);
+    return { ...base, label: "Takeaway " + (Math.max(0, ...used) + 1) };
+  };
   const [order, setOrder] = useState(() => s.orders[tableId] || fresh());
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
@@ -1072,17 +1021,23 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
     const t = setTimeout(fit, 150);
     return () => { window.removeEventListener("resize", fit); clearTimeout(t); };
   }, []);
+  const [nudge, setNudge] = useState(null); // dish whose variants are highlighted after a photo tap
+  const nudgeTimer = useRef(null);
+  useEffect(() => () => clearTimeout(nudgeTimer.current), []);
   const [kind, setKind] = useState("all"); // all | veg | non-veg
   const [letter, setLetter] = useState(""); // clicked (locked) letter
   const [hoverLetter, setHoverLetter] = useState(""); // letter under the mouse
   const [discount, setDiscount] = useState("0");
   const [method, setMethod] = useState("Cash");
   const [cash, setCash] = useState("");
+  const [custName, setCustName] = useState("");
+  const [custPhone, setCustPhone] = useState("");
   const [pay, setPay] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   useEscape(pay && !busy, () => setPay(false));
   const dirty = useRef(false);
+  const kotBusy = useRef(false);
   const closing = useRef(false);
   const latest = useRef(order);
   latest.current = order;
@@ -1093,9 +1048,18 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
     setOrder((o) => {
       const n = fn(o);
       // an emptied order is gone from the kitchen too, so forget its KOT history
-      return n.items.length
-        ? n
-        : { ...n, kotSent: false, kotQty: undefined, kitchenStatus: undefined, kotSentAt: undefined };
+      if (!n.items.length)
+        return { ...n, kotSent: false, kotQty: undefined, kitchenStatus: undefined, kotSentAt: undefined };
+      // never remember more as "sent" than is on the order, so re-adding an item is sent to the kitchen again
+      if (n.kotQty) {
+        const kotQty = {};
+        for (const i of n.items) {
+          const k = i.dishId + "|" + i.variant;
+          if (n.kotQty[k]) kotQty[k] = Math.min(n.kotQty[k], i.quantity);
+        }
+        return { ...n, kotQty };
+      }
+      return n;
     });
   };
   useEffect(() => {
@@ -1142,7 +1106,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
       ? net - Math.round((net * 100) / (100 + rate))
       : Math.round((net * rate) / 100)
     : 0;
-  const taxBase = inclusive ? net - tax : net;
+  const taxParts = splitTax(tax, taxRules);
   const service = Math.round((net * (Number(s.settings.serviceChargeRate) || 0)) / 100);
   const total = net + (inclusive ? 0 : tax) + service;
   const cashP = method === "Cash" ? (cash === "" ? total : paise(cash)) : 0;
@@ -1155,6 +1119,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
         items.push({
           dishId: d.id,
           name: d.name,
+          type: d.type === "non-veg" ? "non-veg" : "veg",
           variant: v.name,
           quantity: 1,
           unitPricePaise: v.pricePaise,
@@ -1167,6 +1132,8 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
     if (!order.items.length) return setErr("Add at least one dish before billing");
     if (status === "Paid" && method === "Cash" && cashP < total)
       return setErr("Cash received is less than the bill total");
+    if (status === "Pending" && !custName.trim() && !custPhone.trim())
+      return setErr("Enter the customer's name or phone so the pending amount can be collected later");
     setBusy(true);
     closing.current = true;
     try {
@@ -1178,6 +1145,8 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
         cashReceivedPaise: cashP,
         discountPaise: discountP,
         status,
+        customerName: custName.trim(),
+        customerPhone: custPhone.trim(),
       });
       notify("Bill " + b.billNumber + " created");
       nav("/bills/" + b.id);
@@ -1189,8 +1158,51 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
       setBusy(false);
     }
   };
+  const tName = table?.name || order.label || "Takeaway";
+  const sentOf = (i) => (order.kotSent ? (order.kotQty ? order.kotQty[i.dishId + "|" + i.variant] || 0 : i.quantity) : 0);
+  /* Cutting down something the kitchen already has: ask first, keep an audit entry and tell the kitchen */
+  const cutItems = async (cuts, apply, title) => {
+    // cuts: [{ item, newQty }]
+    const lost = cuts
+      .map(({ item, newQty }) => ({ item, qty: sentOf(item) - Math.max(newQty, 0) }))
+      .filter((x) => x.qty > 0 && sentOf(x.item) > 0);
+    const real = lost;
+    if (!real.length) return apply();
+    const list = real.map(({ item, qty }) => qty + " × " + item.name + (item.variant ? " (" + item.variant + ")" : "")).join(", ");
+    const yes = await ask({
+      title: title || "Cancel item already sent to kitchen?",
+      message: "The kitchen already has " + list + ". Cancelling will print a cancel notice for the kitchen and be recorded on the order.",
+      confirmLabel: "Cancel & notify kitchen",
+      danger: true,
+    });
+    if (!yes) return;
+    const at = new Date().toISOString();
+    const entries = real.map(({ item, qty }) => ({ name: item.name, variant: item.variant, quantity: qty, at }));
+    apply(entries);
+    printKOT?.(tableId, { ...order, items: entries.map((e) => ({ ...e })), kotSentAt: at }, tName, "CANCEL");
+  };
+  const withAudit = (entries) => (o) => (entries ? { ...o, cancelled: [...(o.cancelled || []), ...entries] } : o);
+  const setQty = (idx, qty) => {
+    const item = order.items[idx];
+    if (!item) return;
+    const apply = (entries) =>
+      change((o) =>
+        withAudit(entries)({
+          ...o,
+          items: o.items.map((x, j) => (j === idx ? { ...x, quantity: qty } : x)).filter((x) => x.quantity > 0),
+        }),
+      );
+    if (qty < item.quantity) cutItems([{ item, newQty: qty }], apply);
+    else apply();
+  };
   const clearOrder = async () => {
     if (!order.items.length) return;
+    if (order.kotSent && order.items.some((i) => sentOf(i) > 0))
+      return cutItems(
+        order.items.map((item) => ({ item, newQty: 0 })),
+        (entries) => change((o) => withAudit(entries)({ ...o, items: [] })),
+        "Clear an order the kitchen already has?",
+      );
     const yes = await ask({
       title: "Clear this order?",
       message: "All dishes on this order will be removed.",
@@ -1210,22 +1222,41 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
   const unsentQty = unsent.reduce((a, i) => a + i.quantity, 0);
   const step = !order.items.length ? 1 : needsKot ? 2 : 3;
   const sendKot = async () => {
-    if (!order.items.length) return;
+    if (!order.items.length || kotBusy.current) return;
+    kotBusy.current = true;
+    try {
+      await sendKotNow();
+    } finally {
+      kotBusy.current = false;
+    }
+  };
+  const sendKotNow = async () => {
+    // print first: only mark the items as "sent" if the ticket really came out (or the owner says go on)
+    const printed = await printKOT?.(tableId, { ...order, items: unsent }, tName);
+    if (printed === false) {
+      const go = await ask({
+        title: "KOT could not be printed",
+        message: "The kitchen ticket did not print. Send it to the Kitchen screen anyway? You can reprint it later with “Reprint KOT”.",
+        confirmLabel: "Send to Kitchen screen",
+      });
+      if (!go) return;
+    }
     const sent = {
       ...order,
       kotSent: true,
       kitchenStatus: "Preparing",
       kotSentAt: new Date().toISOString(),
       kotQty: Object.fromEntries(order.items.map((i) => [keyOf(i), i.quantity])),
+      // what this batch added, so the kitchen can tell new items from ones already being cooked
+      lastKot: { at: new Date().toISOString(), items: Object.fromEntries(unsent.map((i) => [keyOf(i), i.quantity])) },
     };
     const saved = await persist(tableId, sent);
     if (saved === false) return;
     setOrder(sent);
     dirty.current = false;
     notify(order.kotSent ? "New items sent to kitchen" : "KOT sent to kitchen");
-    printKOT?.(tableId, { ...sent, items: unsent }, table?.name || "Takeaway");
   };
-  const reprintKot = () => printKOT?.(tableId, order, table?.name || "Takeaway");
+  const reprintKot = () => printKOT?.(tableId, { ...order, items: sentItems(order) }, tName);
   const openPay = () => { setErr(""); setPay(true); };
   const steps = [
     ["Pick food", Utensils],
@@ -1245,7 +1276,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
           <ArrowLeft size={16} /> Tables
         </button>
         <div className="pos-title">
-          <h1>{table?.name || "Takeaway"}</h1>
+          <h1>{table?.name || order.label || "Takeaway"}</h1>
           <span className="chip">{isTakeaway ? "Takeaway" : "Dine-in"}</span>
           {order.kotSent && <span className="chip kot"><ChefHat size={12} /> KOT sent</span>}
           {order.startedAt && order.items.length > 0 && <small>Started {fmtTime(order.startedAt)} · {elapsed(order.startedAt)}</small>}
@@ -1268,12 +1299,12 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
           <div className="menu-tools">
             <div className="search">
               <Search size={16} />
-              <input placeholder="Search dishes…" value={q} onChange={(e) => setQ(e.target.value)} />
-              {q && <button className="clear-x" onClick={() => setQ("")} aria-label="Clear search"><X size={14} /></button>}
+              <input placeholder="Search dishes…" value={q} onChange={(e) => { setQ(e.target.value); setLetter(""); }} />
+              {q && <button className="clear-x" onClick={() => { setQ(""); setLetter(""); }} aria-label="Clear search"><X size={14} /></button>}
             </div>
             <div className="kind-filter" role="group" aria-label="Food type">
               {[["all", "All"], ["veg", "Veg"], ["non-veg", "Non-veg"]].map(([k, label]) => (
-                <button key={k} className={"kind-btn " + k + (kind === k ? " active" : "")} onClick={() => setKind(k)} aria-pressed={kind === k}>
+                <button key={k} className={"kind-btn " + k + (kind === k ? " active" : "")} onClick={() => { setKind(k); setLetter(""); }} aria-pressed={kind === k}>
                   {k !== "all" && <i className={"veg-mark " + (k === "veg" ? "veg" : "nonveg")} />}
                   {label}
                 </button>
@@ -1281,11 +1312,11 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
             </div>
           </div>
           <div className="pill-row scroll">
-            <button className={"pill" + (cat === "All" ? " active" : "")} onClick={() => setCat("All")}>
+            <button className={"pill" + (cat === "All" ? " active" : "")} onClick={() => { setCat("All"); setLetter(""); }}>
               All
             </button>
             {s.categories.map((c) => (
-              <button key={c} className={"pill" + (cat === c ? " active" : "")} onClick={() => setCat(c)}>
+              <button key={c} className={"pill" + (cat === c ? " active" : "")} onClick={() => { setCat(c); setLetter(""); }}>
                 {c}
               </button>
             ))}
@@ -1324,12 +1355,21 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
               const has = L === "" || lettersWith.has(L);
               const on = (hoverLetter || letter) === L;
               return (
-                <span
+                <button
+                  type="button"
                   key={L || "all"}
+                  aria-label={L ? "Show dishes starting with " + L : "Show all dishes"}
+                  aria-pressed={letter === L}
+                  disabled={!has}
+                  onClick={(e) => {
+                    // mouse / touch are handled by the rail's pointer events; this is for keyboard (Enter / Space)
+                    if (e.detail !== 0) return;
+                    setLetter(letter === L ? "" : L);
+                  }}
                   className={"az-btn" + (L === "" ? " az-all" : "") + (on ? (letter === L && !hoverLetter ? " active" : " hover") : "") + (has ? "" : " none")}
                 >
                   {L || "All"}
-                </span>
+                </button>
               );
             })}
           </nav>
@@ -1342,8 +1382,19 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
             {!dishes.length && (<div className="dish-empty">
             <Empty
               title={s.dishes.length ? "No dishes found" : "Your menu is empty"}
-              desc={s.dishes.length ? "Try another search, letter or category." : "Add dishes from Menu & Dishes to start billing."}
+              desc={
+                !s.dishes.length
+                  ? "Add dishes from Menu & Dishes to start billing."
+                  : activeLetter
+                    ? `No dish starts with “${activeLetter}”${q || cat !== "All" || kind !== "all" ? " in the current search / category" : ""}.`
+                    : "Try another search or category."
+              }
             />
+            {activeLetter && (
+              <button className="text-btn" onClick={() => { setLetter(""); setHoverLetter(""); }}>
+                Clear letter “{activeLetter}”
+              </button>
+            )}
             </div>)}
             {dishes.map((d) => {
               const inCart = order.items.filter((x) => x.dishId === d.id).reduce((a, x) => a + x.quantity, 0);
@@ -1353,9 +1404,16 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
                 <article className={"dish-card" + (inCart ? " in-cart" : "")} key={d.id}>
                   <button
                     className="dish-pic"
-                    onClick={() => single && add(d, variants[0])}
-                    tabIndex={single ? 0 : -1}
-                    aria-label={single ? "Add " + d.name : d.name}
+                    onClick={() => {
+                      if (single) return add(d, variants[0]);
+                      if (variants.length > 1) {
+                        setNudge(d.id);
+                        clearTimeout(nudgeTimer.current);
+                        nudgeTimer.current = setTimeout(() => setNudge(null), 1400);
+                        notify("Choose a size / variant for " + d.name + " below");
+                      }
+                    }}
+                    aria-label={single ? "Add " + d.name : d.name + ": choose a variant below"}
                   >
                     <FoodThumb dish={d} size="lg" />
                     {inCart > 0 && <em className="dish-badge">{inCart}</em>}
@@ -1365,7 +1423,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
                     <b title={d.name}>{d.name}</b>
                     <small>{d.category}</small>
                   </div>
-                  <div className={"variants" + (single ? " single" : "")}>
+                  <div className={"variants" + (single ? " single" : "") + (nudge === d.id ? " nudge" : "")}>
                     {variants.map((v, vi) => (
                       <button key={v.name + "|" + vi} onClick={() => add(d, v)} title={"Add " + d.name + " (" + v.name + ")"}>
                         <span>{single ? "" : v.name}</span>
@@ -1404,14 +1462,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
                   <div className="qty">
                     <button
                       aria-label="Decrease"
-                      onClick={() =>
-                        change((o) => ({
-                          ...o,
-                          items: o.items
-                            .map((x, j) => (j === idx ? { ...x, quantity: x.quantity - 1 } : x))
-                            .filter((x) => x.quantity > 0),
-                        }))
-                      }
+                      onClick={() => setQty(idx, i.quantity - 1)}
                     >
                       −
                     </button>
@@ -1434,7 +1485,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
                   <button
                     className="remove"
                     aria-label="Remove item"
-                    onClick={() => change((o) => ({ ...o, items: o.items.filter((_, j) => j !== idx) }))}
+                    onClick={() => setQty(idx, 0)}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -1465,7 +1516,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
               {taxRules.map((t, i) => (
                 <div key={i}>
                   <span>{t.name || "Tax"} ({Number(t.rate)}%){inclusive ? " incl." : ""}</span>
-                  <b>{money(Math.round((taxBase * Number(t.rate)) / 100))}</b>
+                  <b>{money(taxParts[i])}</b>
                 </div>
               ))}
               {service > 0 && (
@@ -1557,6 +1608,16 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
                 </div>
               </>
             )}
+            <div className="cust-fields">
+              <label className="field-label">
+                Customer name <small>(needed for a pending bill)</small>
+                <input value={custName} maxLength={80} onChange={(e) => setCustName(e.target.value)} />
+              </label>
+              <label className="field-label">
+                Phone
+                <input value={custPhone} maxLength={20} inputMode="tel" onChange={(e) => setCustPhone(e.target.value)} />
+              </label>
+            </div>
             {err && <p className="field-error">{err}</p>}
             <div className="modal-actions">
               <Btn onClick={() => setPay(false)}>Cancel</Btn>
@@ -1611,12 +1672,16 @@ function Menu({ s, save, notify }) {
     )
       return notify("Complete dish and variant fields", "error");
     if (!form.category) return notify("Create a category first (Manage → Categories)", "error");
+    const norm = (x) => String(x || "").trim().replace(/\s+/g, " ").toLowerCase();
+    const dup = s.dishes.find((x) => x.id !== form.id && norm(x.name) === norm(form.name));
+    if (dup)
+      return notify("A dish named “" + dup.name + "” already exists (" + (dup.category || "no category") + "). Use a different name, e.g. add the size or style.", "error");
     const names = form.variants.map((v) => v.name.trim().toLowerCase());
     if (new Set(names).size !== names.length)
       return notify("Each variant needs a different name", "error");
     const d = {
       ...form,
-      name: form.name.trim(),
+      name: form.name.trim().replace(/\s+/g, " "),
       id: edit === "new" ? "dish-" + uid() : form.id,
       variants: form.variants.map((v) => ({
         name: v.name.trim(),
@@ -1674,7 +1739,7 @@ function Menu({ s, save, notify }) {
         />
       </div>
       <Panel title="Menu catalog" desc="Dish pricing and availability">
-        <div className="search">
+        <div className="search my-4">
           <Search size={15} />
           <input
             placeholder="Search dishes…"
@@ -1878,6 +1943,30 @@ function Menu({ s, save, notify }) {
 }
 function Categories({ s, save, notify }) {
   const [name, setName] = useState("");
+  const moveCat = async (i, dir) => {
+    const list = [...s.categories];
+    const j = i + dir;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await save("categories", list);
+  };
+  const renameCat = async (c) => {
+    const n = await ask({ title: "Rename category", input: { label: "Category name", value: c }, confirmLabel: "Save name" });
+    if (n == null || n === c) return;
+    if (s.categories.some((x) => x !== c && x.toLowerCase() === n.toLowerCase()))
+      return notify("A category named “" + n + "” already exists", "error");
+    // dishes keep pointing at the category by name, so move them along with it
+    const categories = s.categories.map((x) => (x === c ? n : x));
+    if (!(await save("categories", categories))) return;
+    if (s.dishes.some((d) => d.category === c)) {
+      const ok = await save("dishes", s.dishes.map((d) => (d.category === c ? { ...d, category: n } : d)));
+      if (!ok) {
+        await save("categories", s.categories); // undo, so no dish is left in a category that does not exist
+        return;
+      }
+    }
+    notify("Category renamed");
+  };
   const add = async () => {
     if (!name.trim()) return;
     if (s.categories.some((c) => c.toLowerCase() === name.trim().toLowerCase()))
@@ -1913,7 +2002,7 @@ function Categories({ s, save, notify }) {
           title="Menu categories"
           desc={`${s.categories.length} categories configured`}
         >
-          {s.categories.map((c) => (
+          {s.categories.map((c, ci) => (
             <div className="category-item" key={c}>
               <span>
                 <Tags size={16} />
@@ -1924,7 +2013,19 @@ function Categories({ s, save, notify }) {
                   {s.dishes.filter((d) => d.category === c).length} dishes
                 </small>
               </b>
+              <span className="cat-tools">
+                <button aria-label={"Move " + c + " up"} title="Move up" disabled={ci === 0} onClick={() => moveCat(ci, -1)}>
+                  <ChevronUp size={15} />
+                </button>
+                <button aria-label={"Move " + c + " down"} title="Move down" disabled={ci === s.categories.length - 1} onClick={() => moveCat(ci, 1)}>
+                  <ChevronDown size={15} />
+                </button>
+                <button aria-label={"Rename " + c} title="Rename" onClick={() => renameCat(c)}>
+                  <Pencil size={15} />
+                </button>
               <button
+                aria-label={"Delete " + c}
+                title="Delete"
                 onClick={async () => {
                   if (s.dishes.some((d) => d.category === c))
                     return notify(
@@ -1946,6 +2047,7 @@ function Categories({ s, save, notify }) {
               >
                 <Trash2 size={15} />
               </button>
+              </span>
             </div>
           ))}
         </Panel>
@@ -1953,15 +2055,19 @@ function Categories({ s, save, notify }) {
     </>
   );
 }
+const BILL_PAGE = 50;
 function Bills({ s, query, setQuery, nav, notify }) {
   const [status, setStatus] = useState("All"),
     [date, setDate] = useState(""),
+    [page, setPage] = useState(0),
     [tableSearch, setTableSearch] = useState("");
+  // only offer statuses that exist (the app cannot create Refunded / Cancelled / Voided bills)
+  const statusOptions = ["All", "Paid", "Pending", ...new Set(s.bills.map((b) => b.status).filter((x) => x && x !== "Paid" && x !== "Pending"))];
   const bills = [...s.bills]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .filter(
       (b) =>
-        [b.billNumber, b.tableName, b.tableId].some((v) =>
+        [b.billNumber, b.tableName, b.tableId, b.customerName, b.customerPhone].some((v) =>
           String(v || "")
             .toLowerCase()
             .includes(query.toLowerCase()),
@@ -1972,19 +2078,24 @@ function Bills({ s, query, setQuery, nav, notify }) {
           .toLowerCase()
           .includes(tableSearch.toLowerCase()),
     );
+  const pages = Math.max(1, Math.ceil(bills.length / BILL_PAGE));
+  const curPage = Math.min(page, pages - 1);
   const csv = () => {
     const text = [
-      "Bill,Date,Table,Subtotal,Discount,Tax,Total,Method,Status",
+      "Bill,Date,Table,Customer,Phone,Subtotal,Discount,Tax,Service Charge,Total,Method,Status",
       ...bills.map((b) =>
         [
           b.billNumber,
           fmtDateTime(b.createdAt),
           b.tableName,
-          b.subtotalPaise / 100,
-          b.discountPaise / 100,
-          b.taxPaise / 100,
-          b.grandTotalPaise / 100,
-          b.paymentMethod,
+          b.customerName || "",
+          b.customerPhone || "",
+          ((b.subtotalPaise || 0) / 100).toFixed(2),
+          ((b.discountPaise || 0) / 100).toFixed(2),
+          ((b.taxPaise || 0) / 100).toFixed(2),
+          ((b.serviceChargePaise || 0) / 100).toFixed(2),
+          ((b.grandTotalPaise || 0) / 100).toFixed(2),
+          b.paymentMethod || "",
           b.status,
         ]
           .map(csvCell)
@@ -2047,27 +2158,25 @@ function Bills({ s, query, setQuery, nav, notify }) {
           <div className="search">
             <Search size={15} />
             <input
-              placeholder="Search bill number…"
+              placeholder="Search bill, table, customer…"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setPage(0); }}
             />
           </div>
           <input
             type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => { setDate(e.target.value); setPage(0); }}
           />
           <input
             placeholder="Filter table…"
             value={tableSearch}
-            onChange={(e) => setTableSearch(e.target.value)}
+            onChange={(e) => { setTableSearch(e.target.value); setPage(0); }}
           />
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            {["All", "Paid", "Pending", "Refunded", "Cancelled", "Voided"].map(
-              (x) => (
-                <option key={x}>{x}</option>
-              ),
-            )}
+          <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
+            {statusOptions.map((x) => (
+              <option key={x}>{x}</option>
+            ))}
           </select>
         </div>
         <div className="table-wrap">
@@ -2086,7 +2195,7 @@ function Bills({ s, query, setQuery, nav, notify }) {
               </tr>
             </thead>
             <tbody>
-              {bills.map((b) => (
+              {bills.slice(curPage * BILL_PAGE, (curPage + 1) * BILL_PAGE).map((b) => (
                 <tr
                   key={b.id}
                   className="click"
@@ -2105,7 +2214,7 @@ function Bills({ s, query, setQuery, nav, notify }) {
                   <td>
                     <b>{money(b.grandTotalPaise)}</b>
                   </td>
-                  <td>{b.paymentMethod}</td>
+                  <td>{b.paymentMethod || "—"}</td>
                   <td>
                     <span className={"status " + b.status?.toLowerCase()}>
                       {b.status}
@@ -2115,6 +2224,15 @@ function Bills({ s, query, setQuery, nav, notify }) {
               ))}
             </tbody>
           </table>
+          {pages > 1 && (
+            <div className="pager">
+              <button className="btn" disabled={curPage === 0} onClick={() => setPage(curPage - 1)}>← Newer</button>
+              <span>
+                Page {curPage + 1} of {pages} · showing {curPage * BILL_PAGE + 1}–{Math.min(bills.length, (curPage + 1) * BILL_PAGE)} of {bills.length}
+              </span>
+              <button className="btn" disabled={curPage >= pages - 1} onClick={() => setPage(curPage + 1)}>Older →</button>
+            </div>
+          )}
           {!bills.length && (
             <Empty
               title="No matching bills"
@@ -2132,7 +2250,14 @@ const escHtml = (x) =>
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
   );
 const paperWidth = { "58mm": "52mm", "80mm": "72mm", A4: "170mm" };
+/* Tax-inclusive bills: tax is already inside the total (older bills did not store the mode, so infer it) */
+const isInclusiveBill = (b) => {
+  if (b.taxMode) return b.taxMode === "inclusive";
+  const net = (b.subtotalPaise || 0) - (b.discountPaise || 0);
+  return !!b.taxPaise && (b.grandTotalPaise || 0) - (b.serviceChargePaise || 0) === net;
+};
 function receiptHtml(s, b) {
+  const incl = isInclusiveBill(b);
   const w = paperWidth[s.settings.receiptSize] || paperWidth["80mm"];
   const row = (l, r, extra = "") => `<div class="r ${extra}"><span>${l}</span><b>${r}</b></div>`;
   const taxLines = b.taxBreakdown?.length
@@ -2140,9 +2265,11 @@ function receiptHtml(s, b) {
     : b.taxPaise
       ? [{ name: "Tax", rate: "", amountPaise: b.taxPaise }]
       : [];
-  const taxable = Math.max(0, (b.subtotalPaise || 0) - (b.discountPaise || 0));
+  const net = Math.max(0, (b.subtotalPaise || 0) - (b.discountPaise || 0));
+  // use the saved taxable value (tax-inclusive bills: total minus tax), not subtotal - discount
+  const taxable = Number.isFinite(b.taxablePaise) ? b.taxablePaise : incl ? Math.max(0, net - (b.taxPaise || 0)) : net;
   const taxRows = taxLines.map((t) =>
-    row(`${escHtml(t.name)}${t.rate !== "" ? ` @ ${escHtml(t.rate)}%` : ""}`, money(t.amountPaise)),
+    row(`${escHtml(t.name)}${t.rate !== "" ? ` @ ${escHtml(t.rate)}%` : ""}${incl ? " (incl.)" : ""}`, money(t.amountPaise)),
   );
   const items = (b.items || [])
     .map(
@@ -2176,14 +2303,14 @@ ${s.hotel.address ? `<p class="mut">${escHtml(s.hotel.address)}</p>` : ""}${s.ho
 <table><tr><th>Item</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr>${items}</table><hr>
 ${row("Subtotal", money(b.subtotalPaise))}${b.discountPaise ? row("Discount", "−" + money(b.discountPaise)) : ""}${taxRows.join("")}${b.serviceChargePaise ? row("Service charge", money(b.serviceChargePaise)) : ""}
 ${row("Grand total", money(b.grandTotalPaise), "big")}
-<p class="mut">Payment: ${escHtml(b.paymentMethod)} · ${escHtml(b.status)}</p>${b.cashReceivedPaise && b.status === "Paid" ? `<p class="mut">Cash: ${money(b.cashReceivedPaise)} · Change: ${money(b.changePaise || 0)}</p>` : ""}
+<p class="mut">Payment: ${escHtml(b.paymentMethod || "Not paid yet")} · ${escHtml(b.status)}</p>${b.customerName || b.customerPhone ? `<p class="mut">Customer: ${escHtml([b.customerName, b.customerPhone].filter(Boolean).join(" · "))}</p>` : ""}${b.cashReceivedPaise && b.status === "Paid" ? `<p class="mut">Cash: ${money(b.cashReceivedPaise)} · Change: ${money(b.changePaise || 0)}</p>` : ""}
 ${taxSummary}
 <div class="c" style="margin-top:12px;font-weight:bold">${escHtml(s.hotel.footer || "Thank you! Visit again.")}</div></body></html>`;
 }
 /* Prints silently on the printer chosen in Settings; falls back to the system dialog when none is chosen. */
-function kotHtml(s, tableId, order, table) {
-  const rows = (order.items || []).map(i => `<div class="r"><b>${escHtml(i.quantity)} × ${escHtml(i.name)}</b><span>${escHtml(i.variant || "")}</span></div>`).join("");
-  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:0}body{font:14px Arial;width:${paperWidth[s.settings.receiptSize] || paperWidth["80mm"]};margin:auto;padding:5mm 0;color:#111}.c{text-align:center}hr{border:0;border-top:1px dashed #333}.r{display:flex;justify-content:space-between;gap:8px;margin:12px 0}.note{font-size:12px}</style></head><body><div class="c"><h2>${escHtml(s.hotel.name || "HOTEL")}</h2><b>KITCHEN ORDER TICKET</b><h2>${escHtml(table || "Takeaway")}</h2><p>${escHtml(fmtDateTime(order.kotSentAt || order.startedAt || new Date()))}</p></div><hr/>${rows}<hr/><p class="note">Order ID: ${escHtml(String(tableId).slice(-8).toUpperCase())}</p>${order.notes ? `<p><b>Note:</b> ${escHtml(order.notes)}</p>` : ""}</body></html>`;
+function kotHtml(s, tableId, order, table, mode) {
+  const rows = (order.items || []).map(i => `<div class="r"><b>${mode === "CANCEL" ? "CANCEL " : ""}${escHtml(i.quantity)} × ${escHtml(i.name)}${i.newQty > 0 && i.newQty < i.quantity ? " [NEW +" + escHtml(i.newQty) + "]" : ""}</b><span>${escHtml(i.variant || "")}</span></div>`).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:0}body{font:14px Arial;width:${paperWidth[s.settings.receiptSize] || paperWidth["80mm"]};margin:auto;padding:5mm 0;color:#111}.c{text-align:center}hr{border:0;border-top:1px dashed #333}.r{display:flex;justify-content:space-between;gap:8px;margin:12px 0}.note{font-size:12px}</style></head><body><div class="c"><h2>${escHtml(s.hotel.name || "HOTEL")}</h2><b>${mode === "CANCEL" ? "*** CANCELLED ITEMS ***" : "KITCHEN ORDER TICKET"}</b><h2>${escHtml(table || "Takeaway")}</h2><p>${escHtml(fmtDateTime(order.kotSentAt || order.startedAt || new Date()))}</p></div><hr/>${rows}<hr/><p class="note">Order ID: ${escHtml(String(tableId).slice(-8).toUpperCase())}</p>${order.notes ? `<p><b>Note:</b> ${escHtml(order.notes)}</p>` : ""}</body></html>`;
 }
 async function printHtml(s, html, notify, role = "payment") {
   try {
@@ -2196,24 +2323,28 @@ async function printHtml(s, html, notify, role = "payment") {
       });
       if (r?.success !== false)
         notify(printerName ? "Sent to " + printerName : "Print dialog closed");
+      return r?.success !== false;
     } else {
       const w = window.open("", "_blank");
       if (!w) throw Error("Pop-up blocked — allow pop-ups to print");
       w.document.write(html);
       w.document.close();
       w.print();
+      return true;
     }
   } catch (e) {
     notify(errMsg(e), "error");
+    return false;
   }
 }
 function BillDetail({ s, notify, reload, nav }) {
   const { billId } = useParams();
-  const [method, setMethod] = useState("Cash");
+  const [method, setMethod] = useState("");
   const b = s.bills.find((x) => x.id === billId);
   if (!b)
     return <Empty title="Bill not found" desc="This transaction does not exist." />;
   const settle = async () => {
+    if (!method) return notify("Choose how the customer paid", "error");
     try {
       await window.hotelApp.settleBill(b.id, method);
       await reload();
@@ -2253,12 +2384,12 @@ function BillDetail({ s, notify, reload, nav }) {
           </div>
           <div className="totals">
             <div><span>Subtotal</span><b>{money(b.subtotalPaise)}</b></div>
-            <div><span>Discount</span><b>− {money(b.discountPaise)}</b></div>
+            {b.discountPaise > 0 && <div><span>Discount</span><b>− {money(b.discountPaise)}</b></div>}
             {taxLines.length
               ? taxLines.map((t, i) => (
-                  <div key={i}><span>{t.name} ({t.rate}%)</span><b>{money(t.amountPaise)}</b></div>
+                  <div key={i}><span>{t.name} ({t.rate}%){isInclusiveBill(b) ? " incl." : ""}</span><b>{money(t.amountPaise)}</b></div>
                 ))
-              : <div><span>Tax</span><b>{money(b.taxPaise)}</b></div>}
+              : b.taxPaise > 0 && <div><span>Tax{isInclusiveBill(b) ? " (incl.)" : ""}</span><b>{money(b.taxPaise)}</b></div>}
             {b.serviceChargePaise > 0 && <div><span>Service charge</span><b>{money(b.serviceChargePaise)}</b></div>}
             <div className="grand"><b>Grand total</b><strong>{money(b.grandTotalPaise)}</strong></div>
           </div>
@@ -2268,8 +2399,10 @@ function BillDetail({ s, notify, reload, nav }) {
         </Panel>
         <Panel title="Transaction information">
           {[
-            ["Payment method", b.paymentMethod],
+            ["Payment method", b.paymentMethod || (b.status === "Pending" ? "Not paid yet" : "—")],
             ["Payment status", b.status],
+            ...(b.customerName || b.customerPhone ? [["Customer", [b.customerName, b.customerPhone].filter(Boolean).join(" · ")]] : []),
+            ...(b.paidAt && b.status === "Paid" ? [["Paid on", fmtDateTime(b.paidAt)]] : []),
             ["Business date", b.businessDate || billDay(b)],
             ["Created at", fmtDateTime(b.createdAt)],
           ].map(([k, v]) => (
@@ -2278,10 +2411,11 @@ function BillDetail({ s, notify, reload, nav }) {
           {b.status === "Pending" && window.hotelApp && (
             <div className="settle-box">
               <b>Collect payment</b>
-              <select value={method} onChange={(e) => setMethod(e.target.value)}>
+              <select value={method} onChange={(e) => setMethod(e.target.value)} aria-label="Payment method">
+                <option value="">Select payment method…</option>
                 {["Cash", "UPI", "Card", "Other"].map((x) => <option key={x}>{x}</option>)}
               </select>
-              <button className="primary" onClick={settle}>Mark as paid</button>
+              <button className="primary" disabled={!method} onClick={settle}>Mark as paid</button>
             </div>
           )}
         </Panel>
@@ -2294,7 +2428,7 @@ function Reports({ s }) {
   const total = paid.reduce((a, b) => a + b.grandTotalPaise, 0);
   const days = Object.entries(
     paid.reduce((a, b) => {
-      const k = billDay(b) || "unknown";
+      const k = collectDay(b) || "unknown";
       a[k] = (a[k] || 0) + b.grandTotalPaise / 100;
       return a;
     }, {}),

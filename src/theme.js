@@ -8,11 +8,17 @@ export const DEFAULT_COLORS = { main: "#f4f3ef", secondary: "#ffffff", accent: "
 
 export const PRESETS = [
   { name: "Emerald", colors: DEFAULT_COLORS },
-  { name: "Ocean", colors: { main: "#eef3fa", secondary: "#ffffff", accent: "#1d5fd1" } },
-  { name: "Ruby", colors: { main: "#faf1f1", secondary: "#fffafa", accent: "#c0262d" } },
-  { name: "Sunset", colors: { main: "#fbf3ea", secondary: "#fff8f0", accent: "#e0670d" } },
-  { name: "Royal", colors: { main: "#f3f0fa", secondary: "#ffffff", accent: "#6a3fd0" } },
-  { name: "Midnight", colors: { main: "#e9edf2", secondary: "#1f2a37", accent: "#18a999" } },
+  { name: "Ocean", colors: { main: "#834dfb", secondary: "#f5f3ff", accent: "#f0e100" } },
+  { name: "Lime", colors: { main: "#013c23", secondary: "#f7f9f7", accent: "#92ff5f" } },
+  { name: "Brust", colors: { main: "#ffca26", secondary: "#19532b", accent: "#d42518" } },
+  { name: "MaryGold", colors: { main: "#dde3e8", secondary: "#3a0f34", accent: "#eaaa00" } },
+  { name: "Lavender", colors: { main: "#6f4e37", secondary: "#e5e4e2", accent: "#e6e0f0" } },
+  { name: "Crimson", colors: { main: "#080808", secondary: "#cdcbca", accent: "#d41514" } },
+  { name: "Burgundy", colors: { main: "#a5a79b", secondary: "#e8d2b5", accent: "#590907" } },
+  { name: "ForestGreen", colors: { main: "#080808", secondary: "#06110c", accent: "#a31c1b" } },
+  { name: "Cream", colors: { main: "#b7a89a", secondary: "#e8dcc6", accent: "#722f37" } },
+  { name: "Electric", colors: { main: "#031211", secondary: "#e8e4d3", accent: "#00aebb" } },
+  { name: "Rose", colors: { main: "#0a0a0a", secondary: "#dbf5ff", accent: "#ff2d95" } },
 ];
 
 const clamp = (n, a = 0, b = 255) => Math.min(b, Math.max(a, n));

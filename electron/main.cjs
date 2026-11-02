@@ -129,6 +129,56 @@ async function writeAtomic(target, data) {
   await fs.writeFile(tmp, JSON.stringify(data, null, 2));
   await fs.rename(tmp, target);
 }
+/* Dish photos live as files in assets/, so dishes.json stays small and fast to rewrite on every save. */
+const IMG_RE = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/;
+const MIME = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
+async function externalizeDishes(dishes) {
+  if (!Array.isArray(dishes)) return dishes;
+  const dir = path.join(root, "assets");
+  await fs.mkdir(dir, { recursive: true });
+  return Promise.all(
+    dishes.map(async (d) => {
+      const m = typeof d?.imageDataUrl === "string" ? IMG_RE.exec(d.imageDataUrl) : null;
+      if (!m) {
+        if (d && "imageDataUrl" in d && !d.imageDataUrl) {
+          const { imageDataUrl, imageFile, ...rest } = d;
+          return rest;
+        }
+        return d;
+      }
+      const buf = Buffer.from(m[2], "base64");
+      const ext = m[1] === "jpeg" ? "jpg" : m[1];
+      const name =
+        "dish-" + crypto.createHash("sha1").update(buf).digest("hex").slice(0, 16) + "." + ext;
+      const f = path.join(dir, name);
+      try {
+        await fs.access(f);
+      } catch {
+        await fs.writeFile(f, buf);
+      }
+      const { imageDataUrl, ...rest } = d;
+      return { ...rest, imageFile: name };
+    }),
+  );
+}
+async function inlineDishes(dishes) {
+  if (!Array.isArray(dishes)) return dishes;
+  return Promise.all(
+    dishes.map(async (d) => {
+      if (!d || typeof d.imageFile !== "string") return d;
+      const { imageFile, ...rest } = d;
+      try {
+        const name = safe(imageFile);
+        const mime = MIME[name.split(".").pop().toLowerCase()];
+        if (!mime) return rest;
+        const buf = await fs.readFile(path.join(root, "assets", name));
+        return { ...rest, imageDataUrl: "data:" + mime + ";base64," + buf.toString("base64") };
+      } catch {
+        return rest; // photo file missing: show the dish without a photo
+      }
+    }),
+  );
+}
 async function readJson(target, fallback) {
   try {
     return JSON.parse(await fs.readFile(target, "utf8"));
@@ -238,6 +288,7 @@ async function load() {
     }
     try {
       data[k] = JSON.parse(await fs.readFile(file(k), "utf8"));
+      if (k === "dishes") data[k] = await inlineDishes(data[k]);
     } catch (e) {
       if (e.code === "ENOENT") data[k] = defaults[k];
       else
@@ -247,6 +298,25 @@ async function load() {
     }
   }
   return { ...data, dataDirectory: root };
+}
+/* Split a total tax amount across tax rules so the parts always add up to the total (largest remainder). */
+function splitTax(totalPaise, rules) {
+  const rates = rules.map((t) => Math.max(0, Number(t.rate) || 0));
+  const sum = rates.reduce((a, b) => a + b, 0);
+  if (!rules.length || !sum || !totalPaise) return rules.map(() => 0);
+  const exact = rates.map((r) => (totalPaise * r) / sum);
+  const parts = exact.map(Math.floor);
+  let left = totalPaise - parts.reduce((a, b) => a + b, 0);
+  exact
+    .map((e, i) => [e - Math.floor(e), i])
+    .sort((a, b) => b[0] - a[0] || a[1] - b[1])
+    .forEach(([, i]) => {
+      if (left > 0) {
+        parts[i]++;
+        left--;
+      }
+    });
+  return parts;
 }
 function calc(order, settings, discount = 0) {
   if (!order?.items?.length) throw Error("Add at least one dish");
@@ -292,15 +362,11 @@ function calc(order, settings, discount = 0) {
       taxPaise = net - taxablePaise;
     } else taxPaise = Math.round((net * rate) / 100);
   }
-  const taxBreakdown = taxRules.map((t) => ({
+  const taxParts = splitTax(taxPaise, taxRules);
+  const taxBreakdown = taxRules.map((t, i) => ({
     name: String(t.name || "Tax"),
     rate: Math.max(0, Number(t.rate) || 0),
-    amountPaise:
-      settings.taxMode === "inclusive"
-        ? Math.round(
-            (taxPaise * Math.max(0, Number(t.rate) || 0)) / (rate || 1),
-          )
-        : Math.round((taxablePaise * Math.max(0, Number(t.rate) || 0)) / 100),
+    amountPaise: taxParts[i],
   }));
   const serviceChargePaise = Math.round(
     (net *
@@ -314,6 +380,7 @@ function calc(order, settings, discount = 0) {
     taxablePaise,
     taxPaise,
     taxRate: rate,
+    taxMode: settings.taxMode === "inclusive" ? "inclusive" : "exclusive",
     taxBreakdown,
     serviceChargePaise,
     grandTotalPaise:
@@ -322,6 +389,8 @@ function calc(order, settings, discount = 0) {
       serviceChargePaise,
   };
 }
+const cleanText = (v, max) =>
+  typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max) : "";
 function dateKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -425,15 +494,22 @@ app.whenReady().then(() => {
   ipcMain.handle("window:is-fullscreen", () => !!win && win.isFullScreen());
   ipcMain.handle("data:load", async () => {
     if (!root) {
+      let saved = null;
       try {
-        const saved = JSON.parse(await fs.readFile(configPath(), "utf8"));
-        if (saved.root) {
-          root = path.resolve(saved.root);
-          await fs.access(root);
-          await init();
-        }
+        saved = JSON.parse(await fs.readFile(configPath(), "utf8"));
       } catch {
-        root = null;
+        saved = null;
+      }
+      if (saved?.root) {
+        const candidate = path.resolve(saved.root);
+        try {
+          await fs.access(candidate);
+          root = candidate;
+        } catch {
+          root = null; // folder is gone: show first-time setup
+        }
+        // A damaged file must surface as an error (the UI offers Retry), not look like a fresh install
+        if (root) await init();
       }
     }
     return root ? load() : null;
@@ -473,7 +549,10 @@ app.whenReady().then(() => {
         });
         return { success: true };
       }
-      await writeAtomic(file(section), value);
+      await writeAtomic(
+        file(section),
+        section === "dishes" ? await externalizeDishes(value) : value,
+      );
       return { success: true };
     }),
   );
@@ -493,15 +572,24 @@ app.whenReady().then(() => {
           (s.settings.billPrefix || "BILL-") +
           String(s.settings.nextBillNumber || 1).padStart(4, "0"),
         tableId: p.tableId,
-        tableName: s.tables.find((t) => t.id === p.tableId)?.name || "Takeaway",
-        orderType: p.tableId === "takeaway" ? "Takeaway" : "Dine-in",
+        tableName:
+          s.tables.find((t) => t.id === p.tableId)?.name || order.label || "Takeaway",
+        orderType:
+          p.tableId === "takeaway" || p.tableId.startsWith("takeaway-")
+            ? "Takeaway"
+            : "Dine-in",
+        cancelledItems: Array.isArray(order.cancelled) ? order.cancelled : [],
         notes: typeof order.notes === "string" ? order.notes.slice(0, 500) : "",
         ...totals,
-        paymentMethod: ["Cash", "UPI", "Card", "Other"].includes(
-          p.paymentMethod,
-        )
-          ? p.paymentMethod
-          : "Cash",
+        customerName: cleanText(p.customerName, 80),
+        customerPhone: cleanText(p.customerPhone, 20),
+        // a pending bill has no payment method yet; it is chosen when the bill is settled
+        paymentMethod:
+          p.status === "Pending"
+            ? null
+            : ["Cash", "UPI", "Card", "Other"].includes(p.paymentMethod)
+              ? p.paymentMethod
+              : "Cash",
         cashReceivedPaise: Math.max(
           0,
           Math.round(Number(p.cashReceivedPaise) || 0),
@@ -510,6 +598,8 @@ app.whenReady().then(() => {
         createdAt: now.toISOString(),
         businessDate: dateKey(now),
       };
+      if (bill.status === "Pending" && !bill.customerName && !bill.customerPhone)
+        throw Error("Enter the customer's name or phone to save a pending bill");
       if (
         bill.paymentMethod === "Cash" &&
         bill.status === "Paid" &&
@@ -619,13 +709,16 @@ app.whenReady().then(() => {
       const list = Array.isArray(v) ? v : v.bills || [];
       const i = list.findIndex((b) => b.id === id);
       if (i < 0) throw Error("Bill file not found");
+      if (!["Cash", "UPI", "Card", "Other"].includes(method))
+        throw Error("Choose how the customer paid");
+      const paidNow = new Date();
       list[i] = {
         ...list[i],
         status: "Paid",
-        paymentMethod: ["Cash", "UPI", "Card", "Other"].includes(method)
-          ? method
-          : list[i].paymentMethod,
-        paidAt: new Date().toISOString(),
+        paymentMethod: method,
+        paidAt: paidNow.toISOString(),
+        // the money is collected today, even though the bill is older
+        paidBusinessDate: dateKey(paidNow),
       };
       await writeAtomic(target, list);
       return { success: true };
@@ -676,7 +769,11 @@ app.whenReady().then(() => {
             if (/^\d{4}-\d{2}-\d{2}\.json$/.test(n))
               await fs.unlink(path.join(root, "bills", n));
           for (const bill of st.bills) await appendDailyBill(bill);
-        } else await writeAtomic(file(k), st[k]);
+        } else
+          await writeAtomic(
+            file(k),
+            k === "dishes" ? await externalizeDishes(st[k]) : st[k],
+          );
       }
       return load();
     });

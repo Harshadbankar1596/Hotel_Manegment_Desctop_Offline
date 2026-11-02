@@ -1,0 +1,291 @@
+[
+  {
+    "id": "72158fae-9127-4719-b5f9-363f0c4acf9f",
+    "billNumber": "BILL-0015",
+    "tableId": "table-2",
+    "tableName": "Table 2",
+    "orderType": "Dine-in",
+    "cancelledItems": [],
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-956b7919-1d66-4e75-843d-ae6f23420f49",
+        "name": "masala papad",
+        "variant": "Full",
+        "quantity": 6,
+        "unitPricePaise": 3000,
+        "lineTotalPaise": 18000
+      }
+    ],
+    "subtotalPaise": 18000,
+    "discountPaise": 0,
+    "taxablePaise": 18000,
+    "taxPaise": 900,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 900
+      }
+    ],
+    "serviceChargePaise": 360,
+    "grandTotalPaise": 19260,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 20000,
+    "status": "Paid",
+    "createdAt": "2026-11-02T06:43:12.040Z",
+    "businessDate": "2026-11-02",
+    "changePaise": 740
+  },
+  {
+    "id": "312fdd6f-88c2-438c-af22-af895f8c4092",
+    "billNumber": "BILL-0016",
+    "tableId": "takeaway-7da633e1-6eaf-4670-8a9e-57a1c59d5b20",
+    "tableName": "Takeaway 1",
+    "orderType": "Takeaway",
+    "cancelledItems": [],
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-0923a07e-9fe2-4b2a-a9a3-90e79013b4e4",
+        "name": "coffi",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 3000,
+        "lineTotalPaise": 3000
+      }
+    ],
+    "subtotalPaise": 3000,
+    "discountPaise": 0,
+    "taxablePaise": 3000,
+    "taxPaise": 150,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 150
+      }
+    ],
+    "serviceChargePaise": 60,
+    "grandTotalPaise": 3210,
+    "paymentMethod": "UPI",
+    "cashReceivedPaise": 0,
+    "status": "Paid",
+    "createdAt": "2026-11-02T06:45:20.154Z",
+    "businessDate": "2026-11-02"
+  },
+  {
+    "id": "2c537d68-1648-4226-a50d-d53edfba1bbc",
+    "billNumber": "BILL-0017",
+    "tableId": "takeaway",
+    "tableName": "Takeaway",
+    "orderType": "Takeaway",
+    "cancelledItems": [
+      {
+        "name": "panner tikka",
+        "variant": "Full",
+        "quantity": 1,
+        "at": "2026-11-02T06:48:41.407Z"
+      }
+    ],
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-58721a65-7f00-4541-a7ff-3b542315e57b",
+        "name": "panner tikka",
+        "variant": "Full",
+        "quantity": 2,
+        "unitPricePaise": 10000,
+        "lineTotalPaise": 20000
+      }
+    ],
+    "subtotalPaise": 20000,
+    "discountPaise": 0,
+    "taxablePaise": 20000,
+    "taxPaise": 1000,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 1000
+      }
+    ],
+    "serviceChargePaise": 400,
+    "grandTotalPaise": 21400,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 21400,
+    "status": "Paid",
+    "createdAt": "2026-11-02T06:49:15.145Z",
+    "businessDate": "2026-11-02",
+    "changePaise": 0
+  },
+  {
+    "id": "c32d478d-859a-47c4-a4a7-88f6d15cc75c",
+    "billNumber": "BILL-0018",
+    "tableId": "table-1",
+    "tableName": "Table 1",
+    "orderType": "Dine-in",
+    "cancelledItems": [],
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-cc91e1da-8161-4463-9bf3-bb166ff2c9eb",
+        "name": "butter paneer",
+        "type": "veg",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 15000,
+        "lineTotalPaise": 15000
+      }
+    ],
+    "subtotalPaise": 15000,
+    "discountPaise": 0,
+    "taxablePaise": 15000,
+    "taxPaise": 750,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 750
+      }
+    ],
+    "serviceChargePaise": 300,
+    "grandTotalPaise": 16050,
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 16050,
+    "status": "Paid",
+    "createdAt": "2026-11-02T06:57:35.693Z",
+    "businessDate": "2026-11-02",
+    "changePaise": 0
+  },
+  {
+    "id": "de9e90e3-caa4-4f25-a634-3bb74e7eca74",
+    "billNumber": "BILL-0019",
+    "tableId": "table-2",
+    "tableName": "Table 2",
+    "orderType": "Dine-in",
+    "cancelledItems": [],
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-1d34640d-b8ad-4527-91ef-92925118355f",
+        "name": "chiken tikka",
+        "type": "non-veg",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 25000,
+        "lineTotalPaise": 25000
+      }
+    ],
+    "subtotalPaise": 25000,
+    "discountPaise": 0,
+    "taxablePaise": 25000,
+    "taxPaise": 1250,
+    "taxRate": 5,
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 1250
+      }
+    ],
+    "serviceChargePaise": 500,
+    "grandTotalPaise": 26750,
+    "paymentMethod": "Card",
+    "cashReceivedPaise": 26750,
+    "status": "Paid",
+    "createdAt": "2026-11-02T06:57:55.649Z",
+    "businessDate": "2026-11-02",
+    "paidAt": "2026-11-02T06:58:42.184Z"
+  },
+  {
+    "id": "48d16405-409a-4883-832e-efc4b7313196",
+    "billNumber": "BILL-0020",
+    "tableId": "takeaway-ec7eacf3-36cb-4bd7-a855-957b237e795e",
+    "tableName": "Takeaway 1",
+    "orderType": "Takeaway",
+    "cancelledItems": [],
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-58721a65-7f00-4541-a7ff-3b542315e57b",
+        "name": "panner tikka",
+        "type": "veg",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 10000,
+        "lineTotalPaise": 10000
+      }
+    ],
+    "subtotalPaise": 10000,
+    "discountPaise": 0,
+    "taxablePaise": 10000,
+    "taxPaise": 500,
+    "taxRate": 5,
+    "taxMode": "exclusive",
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 500
+      }
+    ],
+    "serviceChargePaise": 200,
+    "grandTotalPaise": 10700,
+    "customerName": "",
+    "customerPhone": "",
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 11000,
+    "status": "Paid",
+    "createdAt": "2026-11-02T14:55:51.997Z",
+    "businessDate": "2026-11-02",
+    "changePaise": 300
+  },
+  {
+    "id": "318d3313-7d44-4181-9fcc-f0c11b30a473",
+    "billNumber": "BILL-0021",
+    "tableId": "takeaway-ac580fed-06da-4f7b-bcc1-fff5be2793e9",
+    "tableName": "Takeaway 2",
+    "orderType": "Takeaway",
+    "cancelledItems": [],
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-58721a65-7f00-4541-a7ff-3b542315e57b",
+        "name": "panner tikka",
+        "type": "veg",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 10000,
+        "lineTotalPaise": 10000
+      }
+    ],
+    "subtotalPaise": 10000,
+    "discountPaise": 0,
+    "taxablePaise": 10000,
+    "taxPaise": 500,
+    "taxRate": 5,
+    "taxMode": "exclusive",
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 500
+      }
+    ],
+    "serviceChargePaise": 200,
+    "grandTotalPaise": 10700,
+    "customerName": "",
+    "customerPhone": "",
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 10700,
+    "status": "Paid",
+    "createdAt": "2026-11-02T14:56:05.956Z",
+    "businessDate": "2026-11-02",
+    "changePaise": 0
+  }
+]

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChefHat, Plus, ShoppingBag, Utensils, X } from "lucide-react";
+import { ChefHat, Pencil, Plus, ShoppingBag, Trash2, Utensils, X } from "lucide-react";
 
 const ZONES = ["A/C", "Non A/C", "Bar"];
 /* key, label, css class, hint shown on the card */
@@ -9,7 +9,11 @@ const STATES = [
   ["Running KOT", "In kitchen", "kot", "Add more or bill"],
   ["Ready", "Ready to serve", "ready", "Serve, then bill"],
 ];
-const zoneOf = (t) => t.zone || "A/C";
+const NO_ZONE = "No section";
+const zoneOf = (t) => t.zone || NO_ZONE;
+const isTakeawayId = (id) => id === "takeaway" || String(id).startsWith("takeaway-");
+const newTakeawayId = () => "takeaway-" + (crypto.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2));
+const stateOf = (o) => (o?.kotSent ? (o.kitchenStatus === "Ready" ? "ready" : "kot") : "running");
 const rupees = (paise) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(
     (Number(paise) || 0) / 100,
@@ -21,12 +25,13 @@ const since = (v) => {
   return m < 60 ? m + " min" : Math.floor(m / 60) + "h " + (m % 60) + "m";
 };
 
-export default function FloorPlan({ s, save, nav, notify }) {
+export default function FloorPlan({ s, save, nav, notify, ask }) {
   const [zone, setZone] = useState("All");
   const [filter, setFilter] = useState("All");
   const [adding, setAdding] = useState(false);
   const [tableName, setTableName] = useState("");
-  const [newZone, setNewZone] = useState("A/C");
+  const [newZone, setNewZone] = useState("");
+  const [editing, setEditing] = useState(false);
 
   const tables = useMemo(
     () => (s.tables || []).filter((t) => t.enabled !== false),
@@ -41,17 +46,45 @@ export default function FloorPlan({ s, save, nav, notify }) {
   const inZone = tables.filter((t) => zone === "All" || zoneOf(t) === zone);
   const shown = inZone.filter((t) => filter === "All" || stateFor(t) === filter);
   const count = (st) => inZone.filter((t) => stateFor(t) === st).length;
-  const takeaway = s.orders?.takeaway;
-  const takeawayItems = takeaway?.items || [];
-  const takeawayAmount = takeawayItems.reduce((sum, i) => sum + i.unitPricePaise * i.quantity, 0);
-  const zonesUsed = ZONES.filter((z) => tables.some((t) => zoneOf(t) === z));
+  // every open takeaway order (one per customer), oldest first
+  const takeaways = Object.entries(s.orders || {})
+    .filter(([id, o]) => isTakeawayId(id) && o?.items?.length)
+    .sort((a, b) => String(a[1].startedAt || "").localeCompare(String(b[1].startedAt || "")));
+  const zoneList = [...ZONES, ...new Set(tables.map((t) => t.zone).filter((z) => z && !ZONES.includes(z)))];
+  const zonesUsed = [...zoneList, NO_ZONE].filter((z) => tables.some((t) => zoneOf(t) === z));
   const running = tables.length - tables.filter((t) => stateFor(t) === "Available").length;
 
+  const nameTaken = (n, exceptId) =>
+    tables.some((t) => t.id !== exceptId && String(t.name || "").trim().toLowerCase() === n.trim().toLowerCase());
+  const renameTable = async (t) => {
+    const n = await ask({
+      title: "Rename table",
+      input: { label: "Table name", value: t.name },
+      confirmLabel: "Save name",
+    });
+    if (n == null || n === t.name) return;
+    if (nameTaken(n, t.id)) return notify("A table named “" + n + "” already exists", "error");
+    if (await save("tables", (s.tables || []).map((x) => (x.id === t.id ? { ...x, name: n } : x)))) notify("Table renamed");
+  };
+  const changeZone = async (t, zone) => {
+    await save("tables", (s.tables || []).map((x) => (x.id === t.id ? { ...x, zone } : x)));
+  };
+  const removeTable = async (t) => {
+    if (s.orders?.[t.id]?.items?.length)
+      return notify(t.name + " has an open order. Settle or clear it before deleting the table.", "error");
+    const yes = await ask({
+      title: "Delete " + t.name + "?",
+      message: "The table will be removed from your floor. Past bills keep their table name.",
+      confirmLabel: "Delete table",
+      danger: true,
+    });
+    if (!yes) return;
+    if (await save("tables", (s.tables || []).filter((x) => x.id !== t.id))) notify("Table deleted");
+  };
   const addTable = async () => {
     const name = tableName.trim();
     if (!name) return notify("Enter a table name", "error");
-    if (tables.some((t) => String(t.name || "").trim().toLowerCase() === name.toLowerCase()))
-      return notify("Table already exists", "error");
+    if (nameTaken(name)) return notify("Table already exists", "error");
     const all = s.tables || [];
     const ok = await save("tables", [
       ...all,
@@ -60,7 +93,7 @@ export default function FloorPlan({ s, save, nav, notify }) {
         name,
         enabled: true,
         order: all.length + 1,
-        zone: newZone,
+        ...(newZone ? { zone: newZone } : {}),
       },
     ]);
     if (ok) {
@@ -87,6 +120,12 @@ export default function FloorPlan({ s, save, nav, notify }) {
           </p>
         </div>
         <div className="page-head-actions">
+          <button className="btn" onClick={() => nav("/billing/" + newTakeawayId())}>
+            <ShoppingBag size={16} /> New takeaway
+          </button>
+          <button className={"btn" + (editing ? " on" : "")} onClick={() => setEditing((v) => !v)} aria-pressed={editing}>
+            <Pencil size={15} /> {editing ? "Done editing" : "Edit tables"}
+          </button>
           <button className="btn" onClick={() => setAdding((v) => !v)}>
             <Plus size={16} /> Add table
           </button>
@@ -103,7 +142,8 @@ export default function FloorPlan({ s, save, nav, notify }) {
             onKeyDown={(e) => e.key === "Enter" && addTable()}
           />
           <select value={newZone} onChange={(e) => setNewZone(e.target.value)} aria-label="Section">
-            {ZONES.map((z) => (
+            <option value="">{NO_ZONE}</option>
+            {zoneList.map((z) => (
               <option key={z}>{z}</option>
             ))}
           </select>
@@ -141,34 +181,40 @@ export default function FloorPlan({ s, save, nav, notify }) {
         </div>
       </div>
 
+      <div className="floor-grid takeaway-row" aria-label="Takeaway orders">
+        {takeaways.map(([id, o]) => {
+          const st = stateOf(o);
+          const qty = o.items.reduce((a, i) => a + i.quantity, 0);
+          const amount = o.items.reduce((sum, i) => sum + i.unitPricePaise * i.quantity, 0);
+          return (
+            <button key={id} className={"floor-table takeaway " + st} onClick={() => nav("/billing/" + id)}>
+              <span className="ft-top">
+                <strong>{o.label || "Takeaway"}</strong>
+                <ShoppingBag size={18} />
+              </span>
+              <span className={"ft-state " + st}>
+                <i className={"dot " + st} /> {st === "ready" ? "Ready to serve" : st === "kot" ? "In kitchen" : "Ordering"}
+              </span>
+              <b className="ft-amount">{rupees(amount)}</b>
+              <small className="ft-meta">
+                {qty} item{qty > 1 ? "s" : ""}
+                {since(o.startedAt) ? " · " + since(o.startedAt) : ""}
+              </small>
+            </button>
+          );
+        })}
+        <button className="floor-table takeaway" onClick={() => nav("/billing/" + newTakeawayId())}>
+          <span className="ft-top">
+            <strong>Takeaway</strong>
+            <ShoppingBag size={18} />
+          </span>
+          <span className="ft-state"><i className="dot free" /> {takeaways.length ? "Another customer?" : "No order"}</span>
+          <b className="ft-open">+ New takeaway order</b>
+        </button>
+      </div>
+
       {shown.length ? (
         <div className="floor-grid">
-          {filter === "All" && zone === "All" && (
-            <button
-              className={"floor-table takeaway" + (takeawayItems.length ? " " + (takeaway?.kotSent ? (takeaway.kitchenStatus === "Ready" ? "ready" : "kot") : "running") : "")}
-              onClick={() => nav("/billing/takeaway")}
-            >
-              <div className="ft-top">
-                <strong>Takeaway</strong>
-                <ShoppingBag size={18} />
-              </div>
-              {takeawayItems.length ? (
-                <>
-                  <span className={"ft-state " + (takeaway?.kotSent ? (takeaway.kitchenStatus === "Ready" ? "ready" : "kot") : "running")}>
-                    <i className={"dot " + (takeaway?.kotSent ? (takeaway.kitchenStatus === "Ready" ? "ready" : "kot") : "running")} />{" "}
-                    {takeaway?.kotSent ? (takeaway.kitchenStatus === "Ready" ? "Ready to serve" : "In kitchen") : "Ordering"}
-                  </span>
-                  <b className="ft-amount">{rupees(takeawayAmount)}</b>
-                  <small className="ft-meta">{takeawayItems.reduce((a, i) => a + i.quantity, 0)} items</small>
-                </>
-              ) : (
-                <>
-                  <span className="ft-state"><i className="dot free" /> No order</span>
-                  <b className="ft-open">+ New takeaway order</b>
-                </>
-              )}
-            </button>
-          )}
           {shown.map((table) => {
             const state = stateFor(table);
             const cls = STATES.find((x) => x[0] === state)?.[2] || "free";
@@ -178,16 +224,12 @@ export default function FloorPlan({ s, save, nav, notify }) {
             const items = order?.items || [];
             const amount = items.reduce((sum, i) => sum + i.unitPricePaise * i.quantity, 0);
             const qty = items.reduce((a, i) => a + i.quantity, 0);
-            return (
-              <button
-                key={table.id}
-                className={"floor-table " + cls}
-                onClick={() => nav(`/billing/${table.id}`)}
-              >
-                <div className="ft-top">
+            const inner = (
+              <>
+                <span className="ft-top">
                   <strong>{table.name}</strong>
-                  <small>{zoneOf(table)}</small>
-                </div>
+                  {table.zone && <small>{table.zone}</small>}
+                </span>
                 <span className={"ft-state " + cls}>
                   <i className={"dot " + cls} /> {label}
                 </span>
@@ -209,6 +251,35 @@ export default function FloorPlan({ s, save, nav, notify }) {
                   <b className="ft-open">{hint}</b>
                 )}
                 {items.length > 0 && <span className="ft-hint">{hint} →</span>}
+              </>
+            );
+            if (editing)
+              return (
+                <div key={table.id} className={"floor-table editing " + cls}>
+                  {inner}
+                  <span className="ft-tools">
+                    <select
+                      value={table.zone || ""}
+                      onChange={(e) => changeZone(table, e.target.value)}
+                      aria-label={"Section for " + table.name}
+                    >
+                      <option value="">{NO_ZONE}</option>
+                      {zoneList.map((z) => (
+                        <option key={z}>{z}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => renameTable(table)}>
+                      <Pencil size={13} /> Rename
+                    </button>
+                    <button type="button" className="del" onClick={() => removeTable(table)}>
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </span>
+                </div>
+              );
+            return (
+              <button key={table.id} className={"floor-table " + cls} onClick={() => nav(`/billing/${table.id}`)}>
+                {inner}
               </button>
             );
           })}
