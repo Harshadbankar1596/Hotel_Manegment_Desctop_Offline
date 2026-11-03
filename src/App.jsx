@@ -173,6 +173,75 @@ const manageLinks = [
   ["/settings", "Settings", Settings],
   ["/settings/backup", "Data & Backups", Archive],
 ];
+/* True while the viewport is phone-sized (matches the max-width used in mobile.css) */
+function useMedia(query) {
+  const get = () => typeof window !== "undefined" && window.matchMedia(query).matches;
+  const [on, setOn] = useState(get);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const h = () => setOn(m.matches);
+    h();
+    m.addEventListener("change", h);
+    return () => m.removeEventListener("change", h);
+  }, [query]);
+  return on;
+}
+
+/* Phone navigation: thumb-reachable bottom tab bar with a "More" sheet */
+function MobileNav({ pathname, nav, kitchenActive, kitchenReady, pendingCount, theme, setTheme, reload, toggleFullscreen, fullscreen }) {
+  const [more, setMore] = useState(false);
+  useEffect(() => setMore(false), [pathname]);
+  useEscape(more, () => setMore(false));
+  const inManage = manageLinks.some(([to]) => pathname === to || pathname.startsWith(to + "/"));
+  const tabs = [
+    ["/tables", "Tables", Table2, pathname.startsWith("/tables") || pathname.startsWith("/billing"), 0, ""],
+    ["/kitchen", "Kitchen", ChefHat, pathname.startsWith("/kitchen"), kitchenActive || kitchenReady, kitchenActive ? "" : "ok"],
+    ["/bills", "Bills", Receipt, pathname.startsWith("/bills"), pendingCount, "warn"],
+  ];
+  return (
+    <>
+      <nav className="mobile-nav" aria-label="Main">
+        {tabs.map(([to, label, Icon, active, badge, kind]) => (
+          <button key={to} className={active ? "active" : ""} onClick={() => nav(to)} aria-current={active ? "page" : undefined}>
+            <span className="mn-ico"><Icon size={22} />{badge > 0 && <i className={"mn-badge " + kind}>{badge}</i>}</span>
+            {label}
+          </button>
+        ))}
+        <button className={inManage || more ? "active" : ""} onClick={() => setMore((v) => !v)} aria-expanded={more}>
+          <span className="mn-ico"><LayoutGrid size={22} /></span>
+          More
+        </button>
+      </nav>
+      {more && (
+        <div className="overlay sheet-overlay" onMouseDown={(e) => e.target === e.currentTarget && setMore(false)}>
+          <div className="modal sheet more-sheet" role="dialog" aria-label="More">
+            <div className="sheet-grab" />
+            <div className="more-grid">
+              {manageLinks.map(([to, label, Icon]) => (
+                <button key={to} onClick={() => nav(to)}>
+                  <Icon size={22} />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="more-actions">
+              <button onClick={() => setTheme((v) => (v === "light" ? "dark" : "light"))}>
+                {theme === "light" ? <Moon size={18} /> : <Sun size={18} />} {theme === "light" ? "Dark theme" : "Light theme"}
+              </button>
+              <button onClick={() => { reload(true); setMore(false); }}>
+                <RefreshCw size={18} /> Refresh data
+              </button>
+              <button onClick={toggleFullscreen}>
+                {fullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />} {fullscreen ? "Exit full screen" : "Full screen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function ManageMenu({ nav, pathname }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -303,6 +372,7 @@ export default function App() {
     });
   const nav = useNavigate();
   const loc = useLocation();
+  const isMobile = useMedia("(max-width: 760px)");
   const sRef = useRef(s);
   sRef.current = s;
   const toastTimer = useRef(null);
@@ -599,7 +669,7 @@ export default function App() {
   const kitchenActive = liveOrders.filter((o) => o.kitchenStatus !== "Ready").length;
   const kitchenReady = liveOrders.length - kitchenActive;
   return (
-    <div className="shell">
+    <div className={"shell" + (isMobile ? " is-mobile" : "")}>
       <header className="topbar">
         <button className="brand" onClick={() => nav("/tables")} title="Go to Tables">
           <span className="logo-icon">
@@ -666,6 +736,20 @@ export default function App() {
           </Routes>
         </div>
       </main>
+      {isMobile && (
+        <MobileNav
+          pathname={loc.pathname}
+          nav={nav}
+          kitchenActive={kitchenActive}
+          kitchenReady={kitchenReady}
+          pendingCount={pendingCount}
+          theme={theme}
+          setTheme={setTheme}
+          reload={reload}
+          toggleFullscreen={toggleFullscreen}
+          fullscreen={fullscreen}
+        />
+      )}
       <DialogHost />
       {toast && (
         <div className={"toast " + toast.type} role={toast.type === "error" ? "alert" : "status"}>
@@ -987,6 +1071,7 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
     return { ...base, label: "Takeaway " + (Math.max(0, ...used) + 1) };
   };
   const [order, setOrder] = useState(() => s.orders[tableId] || fresh());
+  const [cartOpen, setCartOpen] = useState(false); // phone only: order panel opens as a bottom sheet
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
   const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -1438,12 +1523,23 @@ function Billing({ tableId, s, persist, finish, nav, notify, printKOT }) {
           </div>
           </div>
         </section>
-        <aside className="cart">
+        <div className={"cart-backdrop" + (cartOpen ? " on" : "")} onClick={() => setCartOpen(false)} />
+        <button className="cart-bar" onClick={() => setCartOpen(true)} aria-label="View current order">
+          <span className="cb-count"><Utensils size={16} />{itemCount}</span>
+          <span className="cb-label">{itemCount ? "View order" : "No items yet"}</span>
+          <b>{money(total)}</b>
+          <ChevronUp size={18} />
+        </button>
+        <aside className={"cart" + (cartOpen ? " open" : "")}>
+          <div className="sheet-grab cart-grab" onClick={() => setCartOpen(false)} />
           <div className="cart-head">
             <div>
               <h3>Current order</h3>
               <small>{itemCount ? itemCount + " item" + (itemCount > 1 ? "s" : "") : "No items yet"}</small>
             </div>
+            <button className="cart-close" onClick={() => setCartOpen(false)} aria-label="Close order">
+              <X size={18} />
+            </button>
             {order.items.length > 0 && (
               <button className="text-btn danger" onClick={clearOrder}>
                 <Trash2 size={13} /> Clear

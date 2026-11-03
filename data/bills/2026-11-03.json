@@ -1,0 +1,45 @@
+[
+  {
+    "id": "df67bba0-c580-4ec6-89db-4107d4f48d73",
+    "billNumber": "BILL-0022",
+    "tableId": "table-4",
+    "tableName": "Table 4",
+    "orderType": "Dine-in",
+    "cancelledItems": [],
+    "notes": "no suger",
+    "items": [
+      {
+        "dishId": "dish-0923a07e-9fe2-4b2a-a9a3-90e79013b4e4",
+        "name": "coffi",
+        "type": "veg",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 3000,
+        "lineTotalPaise": 3000
+      }
+    ],
+    "subtotalPaise": 3000,
+    "discountPaise": 0,
+    "taxablePaise": 3000,
+    "taxPaise": 150,
+    "taxRate": 5,
+    "taxMode": "exclusive",
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 150
+      }
+    ],
+    "serviceChargePaise": 60,
+    "grandTotalPaise": 3210,
+    "customerName": "",
+    "customerPhone": "",
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 4000,
+    "status": "Paid",
+    "createdAt": "2026-11-03T13:39:22.464Z",
+    "businessDate": "2026-11-03",
+    "changePaise": 790
+  }
+]

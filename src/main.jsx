@@ -5,6 +5,7 @@ import '@fontsource-variable/inter';
 import '@fontsource-variable/fraunces';
 import App from './App.jsx';
 import './styles.css';
+import './mobile.css';
 
 class Boundary extends React.Component {
   state = { err: null };
