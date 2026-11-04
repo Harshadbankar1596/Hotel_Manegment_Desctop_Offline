@@ -1,0 +1,26 @@
+export const emptyState = {
+  hotel: {
+    name: "",
+    address: "",
+    phone: "",
+    email: "",
+    gstin: "",
+    footer: "Thank you! Visit again.",
+  },
+  settings: {
+    taxEnabled: false,
+    taxRate: 0,
+    taxMode: "exclusive",
+    serviceChargeRate: 0,
+    billPrefix: "BILL-",
+    nextBillNumber: 1,
+    tableCount: 12,
+    receiptSize: "80mm",
+  },
+  categories: [],
+  dishes: [],
+  tables: [],
+  orders: {},
+  bills: [],
+  dataDirectory: "",
+};

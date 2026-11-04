@@ -1,0 +1,72 @@
+[
+  {
+    "id": "dcebb7e3-206c-4866-b3c8-ec1e76d541e1",
+    "billNumber": "BILL-0023",
+    "tableId": "table-2",
+    "tableName": "Table 2",
+    "orderType": "Dine-in",
+    "cancelledItems": [],
+    "notes": "",
+    "items": [
+      {
+        "dishId": "dish-cc91e1da-8161-4463-9bf3-bb166ff2c9eb",
+        "name": "butter paneer",
+        "type": "veg",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 15000,
+        "lineTotalPaise": 15000
+      },
+      {
+        "dishId": "dish-58721a65-7f00-4541-a7ff-3b542315e57b",
+        "name": "panner tikka",
+        "type": "veg",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 10000,
+        "lineTotalPaise": 10000
+      },
+      {
+        "dishId": "dish-0356be77-d62d-40f6-bcb9-2845359be44f",
+        "name": "chiken handi",
+        "type": "non-veg",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 40000,
+        "lineTotalPaise": 40000
+      },
+      {
+        "dishId": "dish-c7e40ee7-f62e-43ab-9675-bf6ad2161f05",
+        "name": "pav bhaji",
+        "type": "veg",
+        "variant": "Full",
+        "quantity": 1,
+        "unitPricePaise": 12000,
+        "lineTotalPaise": 12000
+      }
+    ],
+    "subtotalPaise": 77000,
+    "discountPaise": 0,
+    "taxablePaise": 77000,
+    "taxPaise": 3850,
+    "taxRate": 5,
+    "taxMode": "exclusive",
+    "taxBreakdown": [
+      {
+        "name": "GST",
+        "rate": 5,
+        "amountPaise": 3850
+      }
+    ],
+    "serviceChargePaise": 1540,
+    "grandTotalPaise": 82390,
+    "customerName": "",
+    "customerPhone": "",
+    "paymentMethod": "Cash",
+    "cashReceivedPaise": 100000,
+    "status": "Paid",
+    "createdAt": "2026-11-04T04:37:03.002Z",
+    "businessDate": "2026-11-04",
+    "changePaise": 17610
+  }
+]
